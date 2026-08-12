@@ -1,0 +1,17 @@
+# systemd timer — the server's built-in alarm clock: it runs a job on a schedule and
+# logs every run. Deploy fills in {{name}} and {{calendar}} from the manifest and
+# installs this as automation-{{name}}.timer, which fires automation-{{name}}.service
+# (systemd pairs them by their matching names).
+
+[Unit]
+Description=Schedule for automation-{{name}}
+
+[Timer]
+# systemd OnCalendar expression, straight from the manifest's schedule.calendar.
+OnCalendar={{calendar}}
+# Persistent = missed runs catch up. If the box was off when a run was due, it fires
+# once as soon as the box is back, then returns to the normal schedule.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

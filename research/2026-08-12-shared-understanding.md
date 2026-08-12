@@ -99,8 +99,12 @@ box. Works for any connection type — CLI configs, raw API keys, MCP server con
 and stored login details for dedicated browser-automation service users. Nothing
 credential-shaped ever enters this repo or a team folder.
 
-Known edge (today's demo): `gws` tokens live in the macOS keyring, so on a headless
-Linux box gws must re-auth into its file backend rather than copying a keyring entry.
+Known edge (today's demo): `gws` tokens live in the macOS keyring. **Update, verified
+during the 2026-08-12 live proof:** re-auth is not needed — the keyring entry can be
+extracted programmatically (`security find-generic-password -s gws-cli`) into gws's
+file backend (`.encryption_key` in a scratch config dir) and synced to the box, where
+gws reads mail with it directly. Browser re-auth into the file backend remains the
+fallback if the keychain refuses. The skill's Gotchas table records the exact steps.
 
 ## Today's proof (2026-08-12, ~2h window)
 

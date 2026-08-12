@@ -1,0 +1,16 @@
+# systemd service — what one run of an automation actually does. Deploy fills in
+# {{name}}, {{command}} and {{description}} from the manifest and installs this as
+# automation-{{name}}.service. The matching .timer file decides when it runs.
+
+[Unit]
+Description={{description}}
+
+[Service]
+# oneshot = start, do the work, exit. Not a program that stays running.
+Type=oneshot
+# %h is the automations user's home folder — no username is ever written in here.
+WorkingDirectory=%h/{{name}}
+ExecStart=%h/{{name}}/{{command}}
+# Optional KEY=value file loaded as environment variables. The leading dash means
+# "carry on if it isn't there".
+EnvironmentFile=-%h/{{name}}/.credentials/env

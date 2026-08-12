@@ -1,0 +1,60 @@
+# automation.yaml — the manifest for one automation.
+# Copy this to the top of the automation's folder and edit it. Every field is
+# explained field by field in references/manifest.md.
+#
+# This example: a job that emails Harvey a brief of his inbox every morning.
+
+# Short handle, lowercase-with-hyphens. Names the folder, the schedule and the logs.
+name: inbox-brief
+
+# One sentence a colleague would understand. Shown wherever this is listed.
+description: Emails Harvey a morning brief of his inbox.
+
+# The person it runs as: their credentials, their Claude seat, their name on it.
+owner: harvey@selrai.com.au
+
+# Where the real copy of the code lives — the one that gets edited.
+source:
+  # local  = a folder on the owner's computer
+  # github = a GitHub repo, written as owner/repo
+  # team   = a path inside the team's shared setup folder
+  type: local
+  location: ~/automations/inbox-brief
+
+runtime:
+  # script       = a plain program, any language
+  # claude-code  = Claude Code running headless, with nobody watching
+  # playwright   = a real browser with no window on screen (see references/runtimes.md)
+  kind: script
+  # The one thing a single run executes, relative to this folder. Must be
+  # executable: chmod +x run.sh
+  command: ./run.sh
+  # Extra Ubuntu software the command needs, by package name. Usually leave empty —
+  # the runtime installs its own pieces.
+  packages: []
+
+schedule:
+  # systemd OnCalendar expression: DayOfWeek Year-Month-Day Hour:Minute:Second, * = every.
+  # Check one before deploying:  systemd-analyze calendar "*-*-* 07:00:00" --iterations=3
+  calendar: "*-*-* 07:00:00"
+  # The same schedule in words. This is what deploy reads back to you, so keep it true.
+  plain: Every morning at 7am (box time).
+
+# Sign-ins this automation needs. Declare-and-sync: name them here, and deploy copies
+# them from the owner's computer onto the box over SSH, locked to that user only.
+# The secrets themselves never go in this file, this folder, or any repo.
+credentials:
+  # from = path on the owner's computer (always from the home folder, ~/...)
+  # to   = where it lands on the box, always inside .credentials/
+  - from: ~/.config/gws/
+    to: .credentials/gws/
+  # Optional special file: .credentials/env holds KEY=value lines that are loaded as
+  # environment variables for every run.
+  # - from: ~/.config/inbox-brief/env
+  #   to: .credentials/env
+
+claude:
+  # true only if this automation runs Claude Code on the box. Deploy then signs Claude
+  # Code in using the OWNER's own Claude subscription, at deploy time. Never one shared
+  # token for the whole team, never an Anthropic API key.
+  setup_token: false
