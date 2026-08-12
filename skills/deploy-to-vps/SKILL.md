@@ -300,8 +300,12 @@ place, its timer live, and one real run observed.
 
    ```bash
    ssh "$BOX" "mkdir -p '<name>/.credentials' && chmod 700 '<name>/.credentials'"
-   rsync -a --chmod=D700,F600 "<from>" "$BOX:<name>/<to>"
+   rsync -a "<from>" "$BOX:<name>/<to>"
+   ssh "$BOX" "chmod -R go-rwx '<name>/.credentials'"   # dirs 700, files 600 — run after every sync
    ```
+
+   (The chmod runs box-side because the Mac's built-in rsync — openrsync — doesn't
+   support `--chmod` filters.)
 
    If the runtime is claude-code (or `claude.setup_token: true`): mint the owner's
    setup token on *this* machine — `claude setup-token` (browser sign-in as the owner,
