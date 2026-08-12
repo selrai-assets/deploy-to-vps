@@ -17,6 +17,8 @@ the server's own logbook — and comes back with
 `journalctl --user-unit automation-<name>`. And every automation runs as the
 `automations` user, which has no admin rights: installs that need admin (`sudo`) are done
 once at deploy time over SSH as the `ubuntu` admin user, never by the automation itself.
+In the snippets below, `ssh ubuntu@"$BOXNAME"` is that admin sign-in — same key, the
+`ubuntu` user instead of the `Host` entry's default `automations`.
 
 ---
 
@@ -39,7 +41,7 @@ runtime:
   installs them as the admin user, non-interactively, before the first run:
 
   ```bash
-  ssh "$BOXNAME" "sudo DEBIAN_FRONTEND=noninteractive apt-get install -y python3-venv jq"
+  ssh ubuntu@"$BOXNAME" "sudo DEBIAN_FRONTEND=noninteractive apt-get install -y python3-venv jq"
   ```
 
 - Ubuntu 24.04 already ships `python3`, `bash`, `curl` and `git`. Node.js, `jq`,
@@ -126,11 +128,11 @@ t4g box with no emulation.
 
 ```bash
 # admin half: Node.js, plus the system libraries Chromium needs to start at all
-ssh "$BOXNAME" "sudo DEBIAN_FRONTEND=noninteractive apt-get install -y nodejs npm"
-ssh "$BOXNAME" "cd ~/<name> && npm install playwright && sudo npx playwright install-deps chromium"
+ssh ubuntu@"$BOXNAME" "sudo DEBIAN_FRONTEND=noninteractive apt-get install -y nodejs npm"
+ssh ubuntu@"$BOXNAME" "sudo npx --yes playwright install-deps chromium"
 
-# automations half: the browser itself, into the automations user's own cache
-ssh "$BOXNAME" "cd ~/<name> && npx playwright install chromium"
+# automations half: Playwright and the browser itself, inside the automation folder
+ssh "$BOXNAME" "cd <name> && npm install --no-fund --no-audit playwright && npx playwright install chromium"
 ```
 
 **The persistent profile.** A **browser profile** is the folder where a browser keeps its

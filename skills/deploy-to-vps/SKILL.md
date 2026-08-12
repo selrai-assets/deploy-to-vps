@@ -4,7 +4,15 @@ description: "One place to deploy any team automation onto an always-on Linux se
 allowed-tools: Bash, Read, Write, Edit, mcp__playwright__*, mcp__plugin_playwright_playwright__*
 metadata:
   category: Productivity & Integrations
-  tags: [vps, server, ec2, aws, deploy, automation, systemd, scheduling]
+  tags:
+    - vps
+    - server
+    - ec2
+    - aws
+    - deploy
+    - automation
+    - systemd
+    - scheduling
   pairs-with:
     - skill: aws
       reason: "Connects the aws CLI this skill drives; that skill ends where this one begins — it calls server provisioning 'a separate setup', and this is it"
@@ -42,7 +50,8 @@ yes before launching anything that bills.
 **What "hardened" means here.** The server accepts connections only over **SSH** (the
 secure remote-login channel, port 22), key-only — password logins are switched off. A
 firewall (ufw) blocks every other inbound door, and security patches install
-themselves (unattended-upgrades). `scripts/harden.sh` does all of it, idempotently.
+themselves (unattended-upgrades). `scripts/harden.sh` does all of it, and is safe to
+run again — every step checks first and only acts if something is missing.
 
 **Identity — the core rules.**
 
@@ -62,6 +71,11 @@ logs need only SSH. Creating, resizing, or destroying a server needs the AWS CLI
 connected — if it isn't, run the **aws** skill first (it mints a `claude-assistant`
 IAM user; provisioning needs its write-level option, PowerUserAccess).
 
+**Operating from Windows.** Windows 10+ ships OpenSSH, so `ssh`, `scp` and
+`~/.ssh/config` all work as written in PowerShell. Where a snippet uses `rsync`
+(which Windows lacks), copy with `scp -r` instead, or run the snippet in WSL. The
+gws keychain note in Gotchas is Mac-specific.
+
 ## Which verb to run
 
 | The person wants | Verb |
@@ -75,7 +89,8 @@ IAM user; provisioning needs its write-level option, PowerUserAccess).
 
 Before any verb: `ls "$HOME/.config/deploy-to-vps/"` — each `<boxname>.env` file there
 is a server this machine already knows. If the verb targets a known box, load its
-record first:
+record first — **in the same shell call as the commands that use it** (shell variables
+don't survive between separate calls):
 
 ```bash
 set -a; . "$HOME/.config/deploy-to-vps/<boxname>.env"; set +a   # INSTANCE_ID, REGION, BOX_USER
@@ -109,10 +124,11 @@ set -a; . "$HOME/.config/deploy-to-vps/<boxname>.env"; set +a   # INSTANCE_ID, R
    - **t4g.small** — 2 cores, 2 GB. ~US$12–18/mo. Right for scripts and Claude jobs. *(default)*
    - **t4g.medium** — 2 cores, 4 GB. ~US$24/mo. Right when browser automations are planned.
 
-   Ask for a short server name (kebab-case, e.g. `oa-automations`). Region defaults to
-   the machine's home region — don't ask about regions unless they bring it up.
+   Ask for a short server name (lowercase-with-hyphens, e.g. `oa-automations`). Region
+   defaults to the machine's home region — don't ask about regions unless they bring
+   it up. Hold the choice as `SIZE` (`t4g.small` or `t4g.medium`) for step 5.
 
-2. **Preflight** (silent):
+2. **Check the connection** (silent):
 
    ```bash
    aws sts get-caller-identity --output json   # must succeed; if not → run the aws skill first
@@ -120,24 +136,29 @@ set -a; . "$HOME/.config/deploy-to-vps/<boxname>.env"; set +a   # INSTANCE_ID, R
    BOX=<boxname>
    ```
 
-3. **Make the deployer's SSH key** (skip any step whose output already exists — every
-   step here is safe to re-run):
+3. **Make the deployer's SSH key** (each step checks first, so re-running is safe):
 
    ```bash
    [ -f "$HOME/.ssh/vps-$BOX" ] || ssh-keygen -t ed25519 -f "$HOME/.ssh/vps-$BOX" -N "" -C "$(whoami)@$BOX"
-   aws ec2 import-key-pair --region "$REGION" --key-name "vps-$BOX-$(whoami)" \
-     --public-key-material "fileb://$HOME/.ssh/vps-$BOX.pub"
+   aws ec2 describe-key-pairs --region "$REGION" --key-names "vps-$BOX-$(whoami)" >/dev/null 2>&1 || \
+     aws ec2 import-key-pair --region "$REGION" --key-name "vps-$BOX-$(whoami)" \
+       --public-key-material "fileb://$HOME/.ssh/vps-$BOX.pub"
    ```
 
-4. **Security group** — the firewall AWS itself puts in front of the server; SSH only:
+4. **Security group** — the firewall AWS itself puts in front of the server; SSH only
+   (reuse it if a previous run already made it):
 
    ```bash
    VPC_ID=$(aws ec2 describe-vpcs --region "$REGION" --filters Name=isDefault,Values=true \
      --query 'Vpcs[0].VpcId' --output text)
-   SG_ID=$(aws ec2 create-security-group --region "$REGION" --group-name "$BOX-sg" \
-     --description "deploy-to-vps: SSH only" --vpc-id "$VPC_ID" --query GroupId --output text)
-   aws ec2 authorize-security-group-ingress --region "$REGION" --group-id "$SG_ID" \
-     --protocol tcp --port 22 --cidr 0.0.0.0/0
+   SG_ID=$(aws ec2 describe-security-groups --region "$REGION" \
+     --filters "Name=group-name,Values=$BOX-sg" --query 'SecurityGroups[0].GroupId' --output text)
+   if [ "$SG_ID" = "None" ]; then
+     SG_ID=$(aws ec2 create-security-group --region "$REGION" --group-name "$BOX-sg" \
+       --description "deploy-to-vps: SSH only" --vpc-id "$VPC_ID" --query GroupId --output text)
+     aws ec2 authorize-security-group-ingress --region "$REGION" --group-id "$SG_ID" \
+       --protocol tcp --port 22 --cidr 0.0.0.0/0
+   fi
    ```
 
 5. **Launch** (confirm size + cost first). Ubuntu 24.04 LTS for ARM, resolved
@@ -147,7 +168,7 @@ set -a; . "$HOME/.config/deploy-to-vps/<boxname>.env"; set +a   # INSTANCE_ID, R
    AMI=$(aws ssm get-parameter --region "$REGION" \
      --name /aws/service/canonical/ubuntu/server/24.04/stable/current/arm64/hvm/ebs-gp3/ami-id \
      --query Parameter.Value --output text)
-   IID=$(aws ec2 run-instances --region "$REGION" --image-id "$AMI" --instance-type t4g.small \
+   IID=$(aws ec2 run-instances --region "$REGION" --image-id "$AMI" --instance-type "$SIZE" \
      --key-name "vps-$BOX-$(whoami)" --security-group-ids "$SG_ID" \
      --block-device-mappings '[{"DeviceName":"/dev/sda1","Ebs":{"VolumeSize":20,"VolumeType":"gp3"}}]' \
      --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=$BOX},{Key=managed-by,Value=deploy-to-vps}]" \
@@ -157,21 +178,26 @@ set -a; . "$HOME/.config/deploy-to-vps/<boxname>.env"; set +a   # INSTANCE_ID, R
      --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
    ```
 
-6. **Wait for SSH** (cloud boxes take ~30–60s after "running" to accept logins):
+6. **Wait for SSH** (cloud boxes take ~30–60s after "running" to accept logins), and
+   check it positively — never fall through to hardening on a box that never answered:
 
    ```bash
+   SSH_OK=no
    for i in $(seq 1 30); do
      ssh -i "$HOME/.ssh/vps-$BOX" -o StrictHostKeyChecking=accept-new -o ConnectTimeout=5 \
-       ubuntu@"$IP" true && break; sleep 5
+       ubuntu@"$IP" true && { SSH_OK=yes; break; }; sleep 5
    done
+   [ "$SSH_OK" = yes ] && echo "OK: server answering" || echo "FAILED: server never answered"
    ```
 
-7. **Harden** — copy `scripts/harden.sh` from this skill's folder and run it with the
-   deployer's public key. It sets up the firewall, self-installing security patches,
-   key-only SSH, the `automations` user, and lets its timers run with nobody logged in:
+7. **Harden** — copy `scripts/harden.sh` from **this skill's own folder** (resolve it
+   from the skill's base directory, never the current working directory) and run it
+   with the deployer's public key. It sets up the firewall, self-installing security
+   patches, key-only SSH, the `automations` user, and lets its timers run with nobody
+   logged in:
 
    ```bash
-   scp -i "$HOME/.ssh/vps-$BOX" scripts/harden.sh ubuntu@"$IP":/tmp/harden.sh
+   scp -i "$HOME/.ssh/vps-$BOX" "<this skill's folder>/scripts/harden.sh" ubuntu@"$IP":/tmp/harden.sh
    ssh -i "$HOME/.ssh/vps-$BOX" ubuntu@"$IP" \
      "sudo bash /tmp/harden.sh \"$(cat "$HOME/.ssh/vps-$BOX.pub")\" && rm /tmp/harden.sh"
    ```
@@ -308,19 +334,24 @@ place, its timer live, and one real run observed.
    support `--chmod` filters.)
 
    If the runtime is claude-code (or `claude.setup_token: true`): mint the owner's
-   setup token on *this* machine — `claude setup-token` (browser sign-in as the owner,
-   once) — capture the token into a shell variable without ever printing it, and ship
-   it straight to the box:
+   setup token on *this* machine and ship it straight to the box — capture and send in
+   **one shell call** (variables don't survive between calls), and never print it:
 
    ```bash
-   printf 'CLAUDE_CODE_OAUTH_TOKEN=%s\n' "$TOKEN" | ssh "$BOX" "umask 077; cat >> '<name>/.credentials/env'"
+   TOKEN="$(claude setup-token)"   # opens the owner's browser once; output is the token — check it's non-empty
+   [ -n "$TOKEN" ] && printf 'CLAUDE_CODE_OAUTH_TOKEN=%s\n' "$TOKEN" | \
+     ssh "$BOX" "umask 077; cat >> '<name>/.credentials/env'" && echo "OK: token on box"
+   unset TOKEN
    ```
 
 6. **Install the schedule.** Render `templates/automation.service` and
    `templates/automation.timer` (fill `{{name}}`, `{{description}}`, `{{command}}`,
-   `{{calendar}}`), copy both to `~/.config/systemd/user/` on the box, then:
+   `{{calendar}}`), copy both to `~/.config/systemd/user/` on the box (make the folder
+   first — a fresh box doesn't have it), then:
 
    ```bash
+   ssh "$BOX" 'mkdir -p ~/.config/systemd/user'
+   scp <rendered .service and .timer> "$BOX:.config/systemd/user/"
    ssh "$BOX" 'export XDG_RUNTIME_DIR=/run/user/$(id -u)
      systemctl --user daemon-reload
      systemctl --user enable --now automation-<name>.timer
@@ -356,6 +387,7 @@ ssh "$BOX" 'export XDG_RUNTIME_DIR=/run/user/$(id -u)
 ssh "$BOX" 'export XDG_RUNTIME_DIR=/run/user/$(id -u)
   journalctl --user-unit automation-<name> --since -48h --no-pager'  # one automation's story
 ssh "$BOX" 'uptime && df -h / && free -h'                            # the box itself: load, disk, memory
+ssh "$BOX" 'grep -H -E "^(owner|description):" */automation.yaml'    # who owns what — every deployed manifest
 ```
 
 For the box's AWS-side state (running? what size? costing money?):
@@ -365,8 +397,10 @@ aws ec2 describe-instances --region "$REGION" --instance-ids "$INSTANCE_ID" \
   --query 'Reservations[0].Instances[0].{state:State.Name,type:InstanceType,ip:PublicIpAddress}' --output json
 ```
 
-Translate for the person: which automations exist, when each last fired and next
-fires, and anything that failed — with what its log actually said, in plain English.
+Translate for the person: which automations exist, **who owns each** (that's whose
+seat and credentials it runs on — the load-balancing decision when a seat hits its
+limits), when each last fired and next fires, and anything that failed — with what its
+log actually said, in plain English.
 
 ---
 
@@ -379,8 +413,8 @@ is ARM, and x86 sizes won't boot it. Confirm the new size and monthly cost first
 ```bash
 aws ec2 stop-instances --region "$REGION" --instance-ids "$INSTANCE_ID"
 aws ec2 wait instance-stopped --region "$REGION" --instance-ids "$INSTANCE_ID"
-aws ec2 modify-instance-attribute --region "$REGION" --instance-ids "$INSTANCE_ID" \
-  --instance-type '{"Value":"t4g.medium"}'
+aws ec2 modify-instance-attribute --region "$REGION" --instance-id "$INSTANCE_ID" \
+  --instance-type '{"Value":"<new size, e.g. t4g.medium>"}'
 aws ec2 start-instances --region "$REGION" --instance-ids "$INSTANCE_ID"
 aws ec2 wait instance-running --region "$REGION" --instance-ids "$INSTANCE_ID"
 ```
@@ -436,7 +470,7 @@ disk dies with it — anything worth keeping should have been in a repo.)
 |---|---|
 | SSH suddenly refuses / times out to a box that worked | The IP changed (stop/start does this). Refresh it from the instance id — end of PROVISION. |
 | `systemctl --user` says "Failed to connect to bus" | The `XDG_RUNTIME_DIR` export is missing from that SSH command — every user-level systemd call over SSH needs it. |
-| `gws` on the box can't read synced credentials | Mac gws keeps its encryption key in the macOS keyring, which doesn't copy as a file. Verified path: on the deployer's Mac, copy the gws config into a scratch dir, extract the key programmatically (`security find-generic-password -s gws-cli -a "$(id -un)" -w` → the scratch dir's `.encryption_key`, mode 600, never displayed), smoke-test locally with `GOOGLE_WORKSPACE_CLI_KEYRING_BACKEND=file GOOGLE_WORKSPACE_CLI_CONFIG_DIR=<scratch> gws gmail +triage`, then sync the scratch dir to the box and set both env vars in the automation's `.credentials/env`. Fallback if the keychain refuses: `gws auth login` into that same scratch dir with the file backend (browser sign-in once). |
+| `gws` on the box can't read synced credentials | Mac gws keeps its encryption key in the macOS keyring, which doesn't copy as a file. Verified path: on the deployer's Mac, copy the gws config into a scratch dir, extract the key programmatically — `security find-generic-password -s gws-cli -a "$(id -un)" -w > <scratch>/.encryption_key` (redirect straight to the file, mode 600, under `umask 077`; never let it print), then smoke-test locally with `GOOGLE_WORKSPACE_CLI_KEYRING_BACKEND=file GOOGLE_WORKSPACE_CLI_CONFIG_DIR=<scratch> gws gmail +triage`, then sync the scratch dir to the box and set both env vars in the automation's `.credentials/env`. Fallback if the keychain refuses: `gws auth login` into that same scratch dir with the file backend (browser sign-in once). |
 | Browser automation is slow or the browser gets killed | 2 GB is tight for Chromium — this workload wants t4g.medium. Say so honestly and offer **scale**. |
 | A site refuses the automation's headless login | Bot defence. The pattern: a dedicated service user on that site, signed in once (interactively if needed), profile persisted in the automation folder — see `references/runtimes.md`. |
 | Scale to an x86 size fails to boot | The box is ARM — stay in the t4g family (or another `g`-suffixed ARM family). |

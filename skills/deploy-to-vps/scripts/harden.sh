@@ -6,15 +6,14 @@
 set -euo pipefail
 
 PUBKEY="${1:-}"
-if [ -n "$PUBKEY" ]; then
-  BOX_USER="automations"
-  SSH_DIR="/home/${BOX_USER}/.ssh"
-  # apt is Ubuntu's software installer; this stops it pausing to ask questions.
-  export DEBIAN_FRONTEND=noninteractive
-else
+if [ -z "$PUBKEY" ]; then
   echo "usage: sudo bash harden.sh \"<deployer ssh public key line>\"" >&2
   exit 1
 fi
+BOX_USER="automations"
+SSH_DIR="/home/${BOX_USER}/.ssh"
+# apt is Ubuntu's software installer; this stops it pausing to ask questions.
+export DEBIAN_FRONTEND=noninteractive
 
 # 1. ufw — the box's firewall. Let SSH in, turn everything else away.
 ufw allow OpenSSH >/dev/null
@@ -49,7 +48,11 @@ else
   printf 'PasswordAuthentication no\nKbdInteractiveAuthentication no\n' >"$DROPIN"
   chmod 644 "$DROPIN"
   sshd -t                        # config parses cleanly before we reload anything
-  systemctl reload ssh
+  # On boxes where SSH is socket-activated the service may be inactive; then every
+  # new connection reads the fresh config anyway and there is nothing to reload.
+  if systemctl is-active --quiet ssh; then
+    systemctl reload ssh
+  fi
   echo "OK: SSH set to keys only, passwords off"
 fi
 
