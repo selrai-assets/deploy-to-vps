@@ -14,8 +14,8 @@ skills/deploy-to-vps/
 research/             # scoping docs (not part of the skill)
 ```
 
-Agreed scope lives in `research/2026-08-12-shared-understanding.md`. If later work
-contradicts it, update that file deliberately or treat the work as out of scope.
+Agreed scope lives in `research/2026-08-14-skool-v1-shared-understanding.md`. If later
+work contradicts it, update that file deliberately or treat the work as out of scope.
 
 ## Dropping it into a team layer
 
