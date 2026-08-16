@@ -107,9 +107,9 @@ of this.
 person named in the manifest's `owner` field, on whatever subscription they signed into
 when the token was minted. Never one org-wide token shared by everything on the box.
 Never an Anthropic API key, anywhere. A box can hold as many people's subscriptions as
-are needed, one credentials file per automation. When a single seat's usage limits are
-outgrown, the fix is to **add seats and spread the automations across them** — three on
-one seat, two on another — not to route everything through one account.
+it needs to, one credentials file per automation. When one seat runs into its usage
+limits, the fix is to **add a seat and spread the automations across them** — three on
+one seat, two on the other — not to route everything through one account.
 
 Tokens can expire or be revoked. When that happens the run fails with an
 authentication error in the logs; re-run `claude setup-token` on the deployer's machine
@@ -181,6 +181,6 @@ Nothing to provision, nothing to patch, no monthly instance cost.
 
 Reach for the box when the work needs what a routine cannot give it: a **command-line
 tool** installed and signed in, a **long-lived process** that stays up between runs, a
-**browser profile** that has to persist, or a pile of automations that want managing in
-one place. The two sit alongside each other: routines for the simple wake-run-stop jobs,
-this box for everything that needs a real machine underneath it.
+**browser profile** that has to persist, or a pile of automations kept in one place. The
+two sit alongside each other: routines for the simple wake-run-stop jobs, this box for
+everything that needs a real machine underneath it.

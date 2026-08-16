@@ -304,12 +304,13 @@ gets an exact, forwardable fix rather than a shrug.
 **Goal:** the automation is on the box, its runtime installed, its credentials in
 place, its timer live, and one real run observed.
 
-1. **Find the automation.** The person usually just names it — "deploy my inbox
-   clearer". Find it on this machine the way you would find anything else (they may
-   know the folder, or it may take a look around). If it doesn't exist yet, build it
-   first, exactly as you normally would, then deploy what you built.
+1. **Find the automation, then read its manifest.** The person usually just names it —
+   "deploy my inbox clearer". Locate that folder on this machine the way you would
+   locate anything else: ask them where it lives, or search for it. If it doesn't exist
+   yet, build it first, exactly as you normally would, then deploy what you built. The
+   positive check before going on: you can list the folder and see the code in it.
 
-   Then **read the manifest** (`automation.yaml` at the top of that folder). You read it
+   Then read the manifest (`automation.yaml` at the top of that folder). You read it
    yourself — there is no parser program. No manifest yet? Write one with the person
    using `templates/automation.yaml`; format reference: `references/manifest.md`.
    `name` becomes the folder and unit names — check it's not already deployed
@@ -480,7 +481,7 @@ disk dies with it — anything worth keeping should have been in a repo.)
 |---|---|
 | SSH suddenly refuses / times out to a box that worked | The IP changed (stop/start does this). Refresh it from the instance id — end of PROVISION. |
 | `systemctl --user` says "Failed to connect to bus" | The `XDG_RUNTIME_DIR` export is missing from that SSH command — every user-level systemd call over SSH needs it. |
-| `gws` on the box can't read synced credentials | The deployer's gws keeps its sign-in encrypted behind an OS keystore (the macOS keyring, Windows Credential Manager) that doesn't copy as a file. Export it instead — same on Mac and Windows: `umask 077; gws auth export --unmasked > <scratch>/credentials.json` (redirect straight to the file, never let it print; `--unmasked` is mandatory — without it the client secret comes back as a placeholder and fails on the box). Sync that file to `.credentials/gws/credentials.json` like any other credential, then put both lines in the automation's `.credentials/env`: `GOOGLE_WORKSPACE_CLI_CONFIG_DIR=/home/automations/<name>/.credentials/gws` and `GOOGLE_WORKSPACE_CLI_KEYRING_BACKEND=file`. The file backend makes gws read that plaintext `credentials.json` directly — no encryption key, no keystore. Fallback if the export refuses: `gws auth login` **on the box**, with those same two env vars set, and finish the browser sign-in once. |
+| `gws` on the box can't read synced credentials | The deployer's gws keeps its sign-in encrypted behind an OS keystore (the macOS keyring, Windows Credential Manager) that doesn't copy as a file. Export it instead — same on Mac and Windows. Write the export to a scratch file under the home folder, so it can be declared as a normal manifest `from:` path: `mkdir -p ~/.cache/deploy-to-vps && umask 077 && gws auth export --unmasked > ~/.cache/deploy-to-vps/gws-credentials.json` (redirect straight to the file, never let it print; `--unmasked` is mandatory — without it the client secret comes back as a placeholder and fails on the box). Declare it like any other credential — `from: ~/.cache/deploy-to-vps/gws-credentials.json`, `to: .credentials/gws/credentials.json` — then put both of these in the automation's `.credentials/env`: `GOOGLE_WORKSPACE_CLI_CONFIG_DIR=/home/automations/<name>/.credentials/gws` and `GOOGLE_WORKSPACE_CLI_KEYRING_BACKEND=file`. The file backend makes gws read that plaintext `credentials.json` directly — no encryption key, no keystore. **Delete the scratch file once the sync is confirmed** (`rm -f ~/.cache/deploy-to-vps/gws-credentials.json`) — it is a live refresh token in the clear. Fallback if the export refuses: `gws auth login` **on the box**, with those same two env vars set, opening the sign-in URL it prints in the deployer's own browser. |
 | Browser automation is slow or the browser gets killed | 2 GB is tight for Chromium — this workload wants t4g.medium. Say so honestly and offer **scale**. |
 | A site refuses the automation's headless login | Bot defence. The pattern: a dedicated service user on that site, signed in once (interactively if needed), profile persisted in the automation folder — see `references/runtimes.md`. |
 | Scale to an x86 size fails to boot | The box is ARM — stay in the t4g family (or another `g`-suffixed ARM family). |
