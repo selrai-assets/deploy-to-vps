@@ -17,7 +17,6 @@ owner: harvey@selrai.com.au
 source:
   # local  = a folder on the owner's computer
   # github = a GitHub repo, written as owner/repo
-  # team   = a path inside the team's shared setup folder
   type: local
   location: ~/automations/inbox-brief
 
@@ -55,6 +54,6 @@ credentials:
 
 claude:
   # true only if this automation runs Claude Code on the box. Deploy then signs Claude
-  # Code in using the OWNER's own Claude subscription, at deploy time. Never one shared
-  # token for the whole team, never an Anthropic API key.
+  # Code in using the OWNER's own Claude subscription, at deploy time. Never one token
+  # shared across automations, never an Anthropic API key.
   setup_token: false
