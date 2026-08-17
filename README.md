@@ -17,6 +17,7 @@ research/             # scoping docs (not part of the skill)
 Agreed scope lives in `research/2026-08-14-skool-v1-shared-understanding.md`. If later
 work contradicts it, update that file deliberately or treat the work as out of scope.
 
-The skill assumes an `aws` skill (or an equivalent working `aws` CLI login with
-write-level access) for server lifecycle verbs; deploying to an existing box needs only
-SSH.
+Server lifecycle verbs need a working `aws` CLI login with write-level access, and the
+skill sets that up itself — `skills/deploy-to-vps/references/aws-setup.md` goes from no
+AWS account at all to a configured CLI, so there is no dependency on an external `aws`
+skill. Deploying to an existing box needs only SSH.

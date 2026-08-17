@@ -1,6 +1,6 @@
 ---
 name: deploy-to-vps
-description: "One place to deploy any automation onto an always-on Linux server (a VPS) on AWS EC2 — so scheduled jobs stop depending on someone's home computer being awake. Six verbs: provision a new hardened server, connect to an existing one someone else owns (with access diagnosis and exact grant instructions), deploy an automation (folder + manifest → server, runtime installed, schedule live), status/logs, scale the server up, and remove an automation or the whole server. Runs plain scripts, headless Claude Code, and headless Playwright browser automations on systemd timers. Use when someone says 'deploy my automation', 'put this on the server', 'set up an always-on server', 'is the server running', 'show me the logs', 'give someone else access to the box', 'the server needs more power', or 'take it down'. Requires the aws skill's CLI connection first for server lifecycle verbs; deploying to an existing server needs only SSH."
+description: "One place to deploy any automation onto an always-on Linux server (a VPS) on AWS EC2 — so scheduled jobs stop depending on someone's home computer being awake. Six verbs: provision a new hardened server, connect to an existing one someone else owns (with access diagnosis and exact grant instructions), deploy an automation (folder + manifest → server, runtime installed, schedule live), status/logs, scale the server up, and remove an automation or the whole server. Runs plain scripts, headless Claude Code, and headless Playwright browser automations on systemd timers. Use when someone says 'deploy my automation', 'put this on the server', 'set up an always-on server', 'is the server running', 'show me the logs', 'give someone else access to the box', 'the server needs more power', or 'take it down'. Server lifecycle verbs need an AWS CLI connection, and this skill sets that up itself from a standing start — account signup through to a scoped IAM user and a configured CLI; deploying to an existing server needs only SSH."
 allowed-tools: Bash, Read, Write, Edit, mcp__playwright__*, mcp__plugin_playwright_playwright__*
 metadata:
   category: Productivity & Integrations
@@ -14,8 +14,6 @@ metadata:
     - systemd
     - scheduling
   pairs-with:
-    - skill: aws
-      reason: "Connects the aws CLI this skill drives; that skill ends where this one begins — it calls server provisioning 'a separate setup', and this is it"
     - skill: gws
       reason: "gws-based automations deployed to a server need their gws sign-in exported to the box's file backend (see Gotchas)"
 ---
@@ -72,8 +70,10 @@ run again — every step checks first and only acts if something is missing.
 
 **Who needs what.** Deploying onto an existing server, checking status, and reading
 logs need only SSH. Creating, resizing, or destroying a server needs the AWS CLI
-connected — if it isn't, run the **aws** skill first (it mints a `claude-assistant`
-IAM user; provisioning needs its write-level option, PowerUserAccess).
+connected — if it isn't, `references/aws-setup.md` gets there from wherever the person
+actually is, including no AWS account at all: signup in their own browser, a dedicated
+`claude-assistant` IAM user scoped to PowerUserAccess, and the CLI configured with a
+region they chose. No other skill is needed.
 
 **Operating from Windows.** Windows 10+ ships OpenSSH, so `ssh`, `scp` and
 `~/.ssh/config` all work as written in PowerShell. Where a snippet uses `rsync`
@@ -129,14 +129,17 @@ later grant a key.
    - **t4g.small** — 2 cores, 2 GB. ~US$12–18/mo. Right for scripts and Claude jobs. *(default)*
    - **t4g.medium** — 2 cores, 4 GB. ~US$24/mo. Right when browser automations are planned.
 
-   Ask for a short server name (lowercase-with-hyphens, e.g. `my-automations`). Region
-   defaults to the machine's home region — don't ask about regions unless they bring
-   it up. Hold the choice as `SIZE` (`t4g.small` or `t4g.medium`) for step 5.
+   Ask for a short server name (lowercase-with-hyphens, e.g. `my-automations`). The
+   region comes from the CLI (`aws configure get region`) — never a default of your own.
+   If it was chosen during AWS setup, don't re-ask; if the CLI was already configured
+   when you arrived, nobody has agreed to it yet, so say it once and get a yes before
+   launching ("the server would live in `<region>` — is that where you want it?"). Hold
+   the size as `SIZE` (`t4g.small` or `t4g.medium`) for step 5.
 
 2. **Check the connection** (silent):
 
    ```bash
-   aws sts get-caller-identity --output json   # must succeed; if not → run the aws skill first
+   aws sts get-caller-identity --output json   # must succeed; if not → references/aws-setup.md
    REGION="$(aws configure get region)"
    BOX=<boxname>
    ```
@@ -501,6 +504,8 @@ disk dies with it — anything worth keeping should have been in a repo.)
 ## Files in this skill
 
 - `SKILL.md` — this file: the six verbs.
+- `references/aws-setup.md` — no AWS account to connected CLI: signup, the
+  `claude-assistant` IAM user at PowerUserAccess, region, credentials.
 - `references/manifest.md` — the automation manifest, field by field.
 - `references/runtimes.md` — script / claude-code / playwright recipes and caveats
   (agents-sdk reserved for later).
@@ -512,9 +517,6 @@ disk dies with it — anything worth keeping should have been in a repo.)
 
 ## Related skills
 
-- **aws** — connects the AWS CLI this skill drives; run it first if
-  `aws sts get-caller-identity` fails. It stops at "server provisioning is a separate
-  setup" — this skill is that setup.
 - **gws** — for Google-Sheets/Gmail automations; note the credential-export gotcha
   above.
 - **Claude cloud routines** — not a skill, but the other place a scheduled job can
