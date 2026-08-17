@@ -2,22 +2,21 @@
 # Copy this to the top of the automation's folder and edit it. Every field is
 # explained field by field in references/manifest.md.
 #
-# This example: a job that emails Harvey a brief of his inbox every morning.
+# This example: a job that emails you a brief of your inbox every morning.
 
 # Short handle, lowercase-with-hyphens. Names the folder, the schedule and the logs.
 name: inbox-brief
 
 # One sentence a colleague would understand. Shown wherever this is listed.
-description: Emails Harvey a morning brief of his inbox.
+description: Emails me a morning brief of my inbox.
 
 # The person it runs as: their credentials, their Claude seat, their name on it.
-owner: harvey@selrai.com.au
+owner: you@example.com
 
 # Where the real copy of the code lives — the one that gets edited.
 source:
   # local  = a folder on the owner's computer
   # github = a GitHub repo, written as owner/repo
-  # team   = a path inside the team's shared setup folder
   type: local
   location: ~/automations/inbox-brief
 
@@ -55,6 +54,6 @@ credentials:
 
 claude:
   # true only if this automation runs Claude Code on the box. Deploy then signs Claude
-  # Code in using the OWNER's own Claude subscription, at deploy time. Never one shared
-  # token for the whole team, never an Anthropic API key.
+  # Code in using the OWNER's own Claude subscription, at deploy time. Never one token
+  # shared across automations, never an Anthropic API key.
   setup_token: false

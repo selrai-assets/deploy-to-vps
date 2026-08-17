@@ -107,9 +107,9 @@ of this.
 person named in the manifest's `owner` field, on whatever subscription they signed into
 when the token was minted. Never one org-wide token shared by everything on the box.
 Never an Anthropic API key, anywhere. A box can hold as many people's subscriptions as
-the team likes, one credentials file per automation. When a team outgrows a single seat's
-usage limits, the fix is to **add seats and spread the automations across them** — three
-on Harvey's seat, two on Bryce's — not to route everything through one account.
+it needs to, one credentials file per automation. When one seat runs into its usage
+limits, the fix is to **add a seat and spread the automations across them** — three on
+one seat, two on the other — not to route everything through one account.
 
 Tokens can expire or be revoked. When that happens the run fails with an
 authentication error in the logs; re-run `claude setup-token` on the deployer's machine
@@ -147,7 +147,7 @@ const ctx = await chromium.launchPersistentContext('.browser-profile', {
 ```
 
 That profile is credential-shaped — it holds live sessions. It lives on the box only:
-never in a repo, never in a team folder. Add `.browser-profile/` to the automation's
+never in a repo, never in a shared folder. Add `.browser-profile/` to the automation's
 `.gitignore`.
 
 **Two honest caveats.**
@@ -181,7 +181,6 @@ Nothing to provision, nothing to patch, no monthly instance cost.
 
 Reach for the box when the work needs what a routine cannot give it: a **command-line
 tool** installed and signed in, a **long-lived process** that stays up between runs, a
-**browser profile** that has to persist, or a pile of automations a team wants managed in
-one place. That is the same split the Ark layer's `docs/routines-decision.md` §7 draws
-when it names an always-on server as a separate, more advanced kit — this is that kit,
-and it sits alongside routines rather than replacing them.
+**browser profile** that has to persist, or a pile of automations kept in one place. The
+two sit alongside each other: routines for the simple wake-run-stop jobs, this box for
+everything that needs a real machine underneath it.
