@@ -186,8 +186,9 @@ Google CLI is the one we hit first — has one piece that isn't a file. Deploy h
 invisibly where the tool can export: it asks the tool for its own credentials
 programmatically, redirects them straight into a scratch file (never showing them),
 syncs that file to the box, deletes the scratch copy, and switches the tool to its
-file-based store there — for gws,
-`gws auth export --unmasked` into a `credentials.json` plus the two
+file-based store there — for gws, `gws auth export --unmasked` into a
+`credentials.json`, the OAuth client's `client_secret.json` synced next to it (both
+files, or the box gets a misleading `403` about project permissions), plus the two
 `GOOGLE_WORKSPACE_CLI_*` environment variables in `.credentials/env`. That path is
 OS-portable: it works the same from a Mac or a Windows machine. Only when a tool offers
 no export does deploy fall back to a one-off browser sign-in **on the box** during
