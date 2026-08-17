@@ -191,13 +191,14 @@ Cover exactly these, and stop:
 - **Nothing is running and nothing is billing yet.** A server has to be launched for
   that, and launching is a separate step that states the cost and waits for a yes.
 - **What it will cost when they do launch**, as a range and rounded up: about US$15 to
-  US$25 a month for the standard server, or about US$28 to US$38 a month for the larger
+  US$25 a month for the standard server, or about US$25 to US$35 a month for the larger
   one browser automations want. It bills from launch until they ask for the server to be
-  removed. (Both ranges round up the skill's own figures, server plus disk, in the "What
-  this costs" section of `SKILL.md`. If those move, these move with them.)
+  removed. (Both ranges take the skill's own figures, server plus disk, from the "What
+  this costs" section of `SKILL.md`, round them up and leave headroom at the top for
+  region and exchange rate. If those figures move, these move with them.)
 - **Their three jobs**, which is the whole of what the kit ever asks of them: sign in to
   their own accounts, click Allow when something asks permission, and say yes to
-  anything that costs money or deletes something.
+  anything that costs money, deletes something, or sends something out into the world.
 - **One example of how to start**, in their words rather than a command:
 
   > Say *"set up my always-on server"* and I will take it from there, including the AWS

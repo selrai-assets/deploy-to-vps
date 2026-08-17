@@ -27,7 +27,7 @@ for it, and Claude states the monthly price and waits for your yes before launch
 An **automation** is one job you want done on a schedule, packaged as a folder: the code
 that does the job, plus one small file next to it saying what it is called, who owns it,
 when it should run, and which sign-ins it needs. That is the whole format. It can be a
-script you had written, something Claude builds for you, or the demo further down.
+script you already have, something Claude builds for you, or the demo further down.
 
 The server is where those folders live and run. One server holds as many automations as
 you care to put on it, each on its own schedule.
@@ -39,8 +39,9 @@ Three, and they never change:
 1. **Sign in to your own accounts.** Your email, your password, your card. Claude never
    types those and never asks you to read them out.
 2. **Click Allow** when something asks for permission.
-3. **Say yes to costs.** Nothing that bills money or deletes anything happens without you
-   agreeing first, with the number in front of you.
+3. **Say yes to costs and consequences.** Nothing that bills money, deletes anything,
+   or sends something out into the world happens without you agreeing first, with the
+   number in front of you where there is one.
 
 Everything else is Claude's job. If you find yourself being handed a command to type,
 something has gone wrong.
@@ -53,7 +54,7 @@ Rounded up, and including the storage that goes with it:
 | Server | Roughly per month | Right for |
 |---|---|---|
 | Standard | US$15 to US$25 | Scripts, email and document jobs, scheduled Claude work |
-| Larger | US$28 to US$38 | Automations that drive a web browser, because a browser wants more memory |
+| Larger | US$25 to US$35 | Automations that drive a web browser, because a browser wants more memory |
 
 Prices move a little by region and by exchange rate, so budget the top of the range you
 pick. Billing starts the moment the server launches and stops when you ask for the server
@@ -67,8 +68,10 @@ rather than needing a separate paid account set up alongside it.
 
 ## What you need before you start
 
-- A Mac or Linux computer with Claude Code on it. Windows works too, with the small
-  caveat that the install steps want WSL or Git Bash rather than PowerShell.
+- A Mac or Linux computer with Claude Code on it. Windows works too. A couple of the
+  install steps need one of the Linux style command windows that Windows can run, and
+  Claude tells you if it has to be switched on first. Everything after install is the
+  same on all three.
 - A card and a phone for the Amazon signup. If you do not have an Amazon Web Services
   account, Claude walks you through creating one and answers the questions as they come.
 - Somewhere between half an hour and two hours for the first setup. Most of that is
@@ -88,7 +91,7 @@ You ask for these in plain English. There is nothing to memorise.
 | "Deploy my inbox clearer" | Your automation is copied over, its schedule set, and run once for real so you can watch it work |
 | "Is the server running?" or "Show me the logs" | What is on the server, when each job last ran and next runs, and what happened, in plain English |
 | "Put my automation on my colleague's server" | Your machine is set up to reach a server somebody else owns, or you get told exactly what is blocking it |
-| "Give my business partner access" | A short message you can forward that lets them grant themselves access, with no password shared between you |
+| "Give my business partner access" | Their own key goes onto the server, one person at a time, with no password shared between you. Getting yourself onto somebody else's server works the same way, as a short message you forward to whoever owns it |
 | "The server needs more power" | The server is resized, with the new monthly cost confirmed first |
 | "Take it down" | One automation, or the whole server, is removed and the billing stops |
 
@@ -121,8 +124,8 @@ and what still needs your attention.
 Say *"deploy the inbox clearer"* and it goes onto the server on a schedule you choose,
 working on your own mailbox and emailing the brief to you. It needs a Google mailbox,
 signed in on your machine, and it never reads anything beyond your email. Nothing about
-it is specific to us, so it is also the easiest thing to copy when you want to build the
-next one.
+it is specific to Selr AI, so it is also the easiest thing to copy when you want to
+build the next one.
 
 ## What is in this repo
 
