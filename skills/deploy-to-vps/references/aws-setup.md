@@ -8,11 +8,13 @@ status and logs never need any of this — they run over SSH.
 **AWS** is Amazon's rent-a-computer service; the **AWS CLI** is the command-line tool this
 skill drives it with. Three things have to exist before provision can run:
 
-1. an **AWS account** — the billing relationship, created by the member, in their name;
-2. a dedicated **IAM user** called `claude-assistant` — a login of its own for this skill,
-   scoped to **PowerUserAccess**, never the account's root login;
-3. the CLI **installed and configured** on this machine, with a **region** the member
-   chose.
+1. an **AWS account** — the billing relationship, created by the person themselves, in
+   their name;
+2. a dedicated **IAM user** called `claude-assistant` — **IAM** is AWS's system of logins
+   and permissions, so this is a login of its own for this skill, scoped to
+   **PowerUserAccess**, never the account's root login;
+3. the CLI **installed and configured** on this machine, with a **region** — the city
+   whose data centre the server lives in — that the person chose.
 
 Stop when those three are true. This reference covers only enough AWS to spin up and look
 after one server — not IAM as a subject, not organisations, not billing alarms.
@@ -21,21 +23,21 @@ after one server — not IAM as a subject, not organisations, not billing alarms
 
 ## Rules that outrank everything below
 
-- **Never the root user's keys.** The root login owns the whole account and cannot be
-  scoped down; a key for it is a key to everything, including closing the account and
-  reading the card on file. Never create one. If the account already has one, say so
-  plainly and delete it (see **Root access keys** at the end).
-- **The member types their own passwords.** Never type, request, or repeat an AWS
-  password, a card number, or a verification code. You drive the pages; they drive the
-  sign-in.
-- **Ask the region. Never assume one.** Not the account's default, not `us-east-1`, not
-  the region of whatever console page happened to load.
-- **The secret access key is written, never spoken.** It has to pass through this
-  conversation once, when it is read off the console page — that is the single documented
-  exception to the skill's credentials-never-in-context rule, and it is why the key
-  belongs to a scoped, dedicated user that can be revoked with two clicks. Write it to
-  disk immediately, never repeat it back, never put it in a summary, and show only the
-  last four characters of the key **id** when confirming.
+- **Every key this skill uses belongs to `claude-assistant`.** The check is positive: the
+  `Arn` that comes back from `get-caller-identity` ends in `:user/claude-assistant`. The
+  root login owns the whole account and cannot be scoped down, so a key for it is a key to
+  everything, including closing the account and reading the card on file — Stage 8 finds
+  and removes any that exist.
+- **They type their own sign-in; you drive the pages.** Passwords, card numbers and
+  verification codes are theirs to enter — never typed, requested or repeated by you.
+- **The region is one they said yes to.** Stage 6 asks; an already-configured region still
+  gets read back and confirmed, because a region that was configured is not the same as a
+  region that was chosen.
+- **The secret access key reaches disk without passing through this conversation.**
+  Stage 5's CSV download is the way that holds — file to file, matching the skill's
+  credentials-never-in-context rule. The read-off-the-page fallback there breaks it, so it
+  is a fallback: if you use it, write the value immediately, never repeat it back, never
+  put it in a summary, and show only the last four characters of the key **id**.
 
 ---
 
@@ -50,25 +52,47 @@ aws configure list        # is a profile configured, and with which region?
 aws sts get-caller-identity --output json
 ```
 
-`get-caller-identity` returning JSON with an `Account` and an `Arn` means everything is
-already in place — say so and go back to the verb that sent you here. Read the `Arn`
-before you do: one ending in `:root` is the root login, which must be replaced, not used
-(jump to **Stage 4** to make a proper user, then **Root access keys**).
+`get-caller-identity` returning JSON with an `Account` and an `Arn` means most of this is
+already done, but two things still have to be checked before you go back to the verb that
+sent you here:
+
+- **Whose key is it?** The `Arn` — AWS's identifier for a thing, the long
+  `arn:aws:iam::…` string in that JSON — should end in `:user/claude-assistant`. One
+  ending in `:root` is the root login, which must be replaced, not used: sign in to the
+  console (**Stage 3**), make the proper user (**Stage 4**), then clean up the root key
+  (**Stage 8**).
+- **Whose region is it?** A configured region is not the same as a chosen one; some other
+  tool may have written it, and `us-east-1` is what most of them write. Read it back and
+  get an explicit yes before any server is launched into it — that is Stage 6, and it
+  applies just as much on this path:
+
+  ```bash
+  aws configure get region
+  ```
+
+  > AWS is already connected here, set to `<region>` — the server would live there.
+  > Is that where you want it?
+
+  A no sends you to Stage 6 to pick and write a region. Only when both checks pass is this
+  reference finished.
 
 Otherwise start at the earliest stage that is missing something: no `aws` binary →
 Stage 1; no account → Stage 2; account but no `claude-assistant` user → Stage 3.
 
 ## Stage 1 — install the CLI
 
-Tell the member this takes a minute or two, then install for the platform this machine is:
+Tell the person this takes a minute or two, then install for the platform this machine is:
 
 ```bash
 # macOS
 brew install awscli
 
-# Ubuntu / Debian
-curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip
-unzip -q /tmp/awscliv2.zip -d /tmp && sudo /tmp/aws/install --update
+# Ubuntu / Debian (arch-aware — an ARM machine needs the aarch64 build, and a
+# minimal image often has no unzip)
+sudo apt-get install -y unzip
+ARCH=$(uname -m)   # x86_64 or aarch64
+curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-$ARCH.zip" -o /tmp/awscliv2.zip
+unzip -q -o /tmp/awscliv2.zip -d /tmp && sudo /tmp/aws/install --update
 
 # Windows (PowerShell)
 winget install --id Amazon.AWSCLI -e
@@ -83,16 +107,16 @@ aws --version    # expect: aws-cli/2.x.x ...
 If the shell still can't find `aws` afterwards, the install worked but this shell's `PATH`
 predates it — start a fresh shell and check again before treating it as a failure.
 
-## Stage 2 — the account, opened by the member
+## Stage 2 — the account, opened by the person themselves
 
 Account signup asks for a card, a phone number and a real identity. It is theirs to do,
 and Playwright must not drive it. Open the page in **their own default browser** so they
 finish it in a normal window:
 
 ```bash
-open "https://portal.aws.amazon.com/billing/signup"          # macOS
-xdg-open "https://portal.aws.amazon.com/billing/signup"      # Linux
-start "" "https://portal.aws.amazon.com/billing/signup"      # Windows
+open "https://portal.aws.amazon.com/billing/signup"                    # macOS
+xdg-open "https://portal.aws.amazon.com/billing/signup"                # Linux
+Start-Process "https://portal.aws.amazon.com/billing/signup"           # Windows (PowerShell)
 ```
 
 Say what's coming before they hit it — an email address and a password, a card, an SMS or
@@ -111,9 +135,10 @@ Signup finishes on a "Congratulations" page or in an email a few minutes later. 
 them to say they're in — account activation is occasionally not instant, and IAM pages
 won't work until it is.
 
-While they're at it, MFA on the root login is worth thirty seconds and is the single
-biggest thing protecting the account. Offer it; don't insist, and don't let it block the
-rest.
+While they're at it, offer **MFA** on the root login — multi-factor authentication, the
+phone-app code on top of the password. It takes about thirty seconds during signup and is
+the single biggest thing protecting an account whose root login can close it. Offer once;
+don't insist, and don't let it block the rest.
 
 ## Stage 3 — sign in to the console, then take over the browser
 
@@ -125,7 +150,7 @@ browser_navigate → https://console.aws.amazon.com/iam/home#/users
 browser_snapshot
 ```
 
-The sign-in form asks for root or IAM user. A member who has just created the account
+The sign-in form asks for root or IAM user. Someone who has just created the account
 only has the root login, so **root is correct here** — signing in as root is fine and
 normal; only root *access keys* are forbidden. If they already have their own IAM login,
 pick IAM user and ask for the 12-digit account id or alias (it's shown top-right in any
@@ -142,7 +167,7 @@ see the console shell and the account menu top-right before going on.
 ## Stage 4 — the `claude-assistant` user, PowerUserAccess
 
 A user of its own means this skill's access can be reviewed and revoked on its own,
-without touching the member's login. Drive **Users → Create user**:
+without touching the person's own login. Drive **Users → Create user**:
 
 1. User name: `claude-assistant`.
 2. Leave console access **off** — this login is for the CLI, so it needs no password.
@@ -150,11 +175,17 @@ without touching the member's login. Drive **Users → Create user**:
 4. Create user, and confirm from the resulting user page that the policy is attached.
 
 **PowerUserAccess, not AdministratorAccess.** PowerUserAccess covers every service this
-skill touches — EC2 instances, key pairs, security groups, the SSM parameter that resolves
-the Ubuntu image — while withholding the ability to create users, change permissions, or
-alter billing. Administrator adds nothing provision needs and hands over the whole
-account. If the member asks for Administrator "to be safe", it is the opposite of safe:
-say that the narrower policy is what makes an assistant's key survivable if it ever leaks.
+skill touches — EC2 instances, key pairs, security groups, and the **SSM parameter** (an
+AWS-published lookup value) that resolves the current Ubuntu image — while withholding
+IAM, Organizations and account-level actions. In practice that means a leaked
+`claude-assistant` key cannot create logins, widen its own permissions, or close the
+account. Be accurate about the limit: it is a permissions boundary, **not** a billing one
+— the policy does not fence off billing APIs, and the real protection against surprise
+spend is that every launch in this skill is a confirmed step with the price stated.
+
+Administrator adds nothing provision needs and hands over the whole account. If they ask
+for Administrator "to be safe", it is the opposite of safe: the narrower policy is what
+makes an assistant's key survivable if it ever leaks.
 
 If a `claude-assistant` user already exists, reuse it — check its attached policy is
 PowerUserAccess and move on.
@@ -165,8 +196,27 @@ On the user's **Security credentials** tab → **Create access key**:
 
 1. Purpose: **Command Line Interface (CLI)**.
 2. Tick the acknowledgement, then Next, skip the description tag, Create.
-3. On the retrieve page the secret is shown **once**. If it's masked, click **Show**
-   first, then read both values off the page:
+3. The retrieve page shows the secret **once**, and offers **Download .csv file**. Click
+   that. It writes both values straight to a file, which is the whole point — the secret
+   never enters this conversation, exactly as the skill's credentials rule requires.
+
+Find what landed and read the values out of it in the same shell call that writes them
+(see Stage 7); the file goes to the browser's download folder, so locate it rather than
+assuming a path:
+
+```bash
+CSV=$(ls -t "$HOME/Downloads"/*accessKeys*.csv 2>/dev/null | head -1)
+AKID=$(awk -F, 'NR==2{print $1}' "$CSV")
+SECRET=$(awk -F, 'NR==2{print $2}' "$CSV")
+[ "${#AKID}" -eq 20 ] && [ "${#SECRET}" -eq 40 ] && echo "OK: key read from CSV"
+```
+
+Shred the CSV once Stage 7 verifies — `rm -P "$CSV"` on macOS, `shred -u "$CSV"` on Linux.
+It is a live credential sitting in a downloads folder.
+
+**Fallback, if the download is unavailable** (a locked-down browser, a Playwright profile
+with downloads disabled): read the values off the page instead, clicking **Show** first if
+the secret is masked.
 
 ```
 () => {
@@ -178,9 +228,10 @@ On the user's **Security credentials** tab → **Create access key**:
 }
 ```
 
-Validate both before using them — the id matches `AKIA` plus 16 characters, the secret is
-a 40-character base64-ish string. A null secret means the page is still masking it; click
-Show and read again rather than guessing.
+This route puts the secret through the conversation, which is why it is the fallback and
+not the default. Validate both before using them — the id is `AKIA` plus 16 characters,
+the secret is 40 characters of letters, digits, `+`, `/` and `=`. A null secret means the
+page is still masking it; click Show and read again rather than guessing.
 
 **One key per user.** If the user already has an active key and nobody has its secret, the
 fix is to delete that one and make a fresh one — never a second live key.
@@ -207,9 +258,24 @@ no preference, offer the nearest to them and get a yes; don't pick silently.
 
 ## Stage 7 — write the credentials, then prove they work
 
-Write the files directly, never echoing either value into chat. If `~/.aws/credentials`
-already exists, read it first and check for a `[default]` profile — something else is
-using this machine's AWS access, and clobbering it is a real outage. Back it up and say so.
+Write the files directly, never echoing either value into chat. First check whether
+anything is already there:
+
+```bash
+grep -l '^\[default\]' "$HOME/.aws/credentials" 2>/dev/null
+```
+
+A hit means something else on this machine is already using AWS, and overwriting it is a
+real outage for whatever that is. **Stop and ask** — don't back up and proceed on the
+assumption a `.bak` makes it reversible:
+
+> There's already an AWS key configured on this machine. I can replace it with the new
+> one, or leave it alone and add this as a second, separately named setup. Which?
+
+Replacing is usually right when the existing key is theirs and stale; if they're unsure,
+leave it and use a named profile instead (`[claude-assistant]` in both files, and every
+`aws` command in this skill then needs `--profile claude-assistant`). Only with a clear
+answer, write:
 
 ```bash
 mkdir -p "$HOME/.aws"
@@ -229,7 +295,9 @@ chmod 600 "$HOME/.aws/credentials" "$HOME/.aws/config"
 ```
 
 `$AKID`, `$SECRET` and `$REGION` have to be set in the **same shell call** as the heredoc
-— shell variables don't survive between calls. Then verify:
+— shell variables don't survive between calls. On the CSV path that means the two `awk`
+lines from Stage 5 go in this same call, so the secret travels file to file and is never
+seen. Then verify:
 
 ```bash
 aws sts get-caller-identity --output json
@@ -241,7 +309,36 @@ The first must return an `Arn` ending in `:user/claude-assistant` — an `Arn` e
 the key can actually reach EC2 in the chosen region, which `get-caller-identity` alone does
 not (it succeeds for a key with no permissions at all).
 
-Finally, click **Done** on the console page and tell the member what now exists:
+## Stage 8 — root access keys: find them, delete them
+
+Do this before declaring the setup finished, and while the root session from Stage 3 is
+still open — only the root login can remove its own keys. The root **My security
+credentials** page lists them:
+
+```
+browser_navigate → https://console.aws.amazon.com/iam/home#/security_credentials
+browser_snapshot
+```
+
+Empty Access keys section → good, say nothing and go to Stage 9. A key listed is worth
+interrupting for: tell them in one line what it is ("that key can do anything to
+this account, including close it and read the card on file"), then remove it —
+**Actions → Deactivate** first, then **Actions → Delete**, which asks for the key id typed
+out to confirm.
+
+Deactivate before deleting, and leave a minute between them. If some forgotten tool of
+theirs was quietly using that key, deactivation surfaces it as that tool breaking, which is
+undoable; a deletion isn't.
+
+Deleting is the default, not a suggestion — this is the one step here worth being firm
+about, and a `claude-assistant` key now exists so nothing is lost by removing it. The only
+reason to stop is their naming a specific thing that still uses it: then deactivation
+alone is the compromise, and it goes in the Stage 9 summary as an open risk in their words,
+not quietly dropped. Either way, never use a root key for this skill.
+
+## Stage 9 — confirm what exists
+
+Click **Done** on the console page and tell them what now exists:
 
 ```
 AWS is connected.
@@ -256,34 +353,14 @@ confirmed step.
 
 ---
 
-## Root access keys — refuse, and clean up
-
-Root keys are the one thing here worth interrupting for. Check while you're in the console
-— the root **My security credentials** page lists them:
-
-```
-browser_navigate → https://console.aws.amazon.com/iam/home#/security_credentials
-```
-
-If the Access keys section is empty, good — say nothing and carry on. If a key is listed,
-tell the member what it is in one line ("that key can do anything to the account,
-including close it") and offer to remove it: **Actions → Deactivate**, confirm the account
-still works, then **Actions → Delete**, which asks for the key id typed out to confirm.
-Only the root login can do this, so it has to happen in the session they signed into.
-
-Deactivate before deleting. If some other tool of theirs was quietly using that key, the
-deactivation shows up as that tool breaking, which is recoverable; a deletion isn't. If
-they'd rather keep it, that's their call — record that you flagged it, don't fight it, and
-never use it for this skill.
-
 ## Gotchas
 
 | Problem | Fix |
 |---|---|
 | IAM pages 403 or look empty right after signup | Activation hasn't finished. It's usually minutes, occasionally hours, and there is nothing to fix — wait and retry. |
 | `get-caller-identity` works, but `run-instances` says not authorized | The key is real but under-scoped. Check the user's attached policy is PowerUserAccess, not a narrower one someone picked. |
-| `Arn` ends in `:root` | Root keys are in use. Stage 4 to make the proper user, then delete the root key. |
-| The secret was closed without being saved | It cannot be retrieved — the page shows it once. Delete that key and create a new one. |
+| `Arn` ends in `:root` | Root keys are in use. Stage 4 for the proper user, then Stage 8 to remove the root key. |
+| The secret was closed without being saved, or the CSV never downloaded | It cannot be retrieved — the page shows it once. Delete that key and create a new one; there is no recovery path and no reason to hunt for one. |
 | Shell can't find `aws` after a clean install | `PATH` in this shell predates the install. New shell, check again. |
 | A second person needs to run these verbs | Their machine, their own `claude-assistant` key. Never copy `~/.aws/credentials` between machines. |
 | Console lands in the wrong region | The console's region picker is cosmetic here — what matters is the region in `~/.aws/config`, and every command in this skill passes `--region` explicitly. |
