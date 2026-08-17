@@ -129,12 +129,9 @@ later grant a key.
    - **t4g.small** — 2 cores, 2 GB. ~US$12–18/mo. Right for scripts and Claude jobs. *(default)*
    - **t4g.medium** — 2 cores, 4 GB. ~US$24/mo. Right when browser automations are planned.
 
-   Ask for a short server name (lowercase-with-hyphens, e.g. `my-automations`). The
-   region comes from the CLI (`aws configure get region`) — never a default of your own.
-   If it was chosen during AWS setup, don't re-ask; if the CLI was already configured
-   when you arrived, nobody has agreed to it yet, so say it once and get a yes before
-   launching ("the server would live in `<region>` — is that where you want it?"). Hold
-   the size as `SIZE` (`t4g.small` or `t4g.medium`) for step 5.
+   Ask for a short server name (lowercase-with-hyphens, e.g. `my-automations`). Region
+   defaults to the machine's home region — don't ask about regions unless they bring
+   it up. Hold the size as `SIZE` (`t4g.small` or `t4g.medium`) for step 5.
 
 2. **Check the connection** (silent):
 

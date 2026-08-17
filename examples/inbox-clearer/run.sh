@@ -3,6 +3,12 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
+# This automation drives Google through the gws command line tool.
+if ! command -v gws >/dev/null 2>&1; then
+  echo "The gws command line tool is not installed or not signed in. Install and sign in to gws first." >&2
+  exit 1
+fi
+
 # Credentials that deploy synced land in .credentials/. On the box the gws CLI
 # reads its config from there with the file keyring backend. On your own laptop
 # the folder is absent and gws uses the sign-in already on the machine.

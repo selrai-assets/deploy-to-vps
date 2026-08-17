@@ -21,6 +21,8 @@ runtime:
   # A plain Python program. No Claude Code on the box, so no setup token.
   kind: script
   command: ./run.sh
+  # packages lists apt software only. The gws command line tool is not an apt
+  # package, so it has to be present on whatever machine runs this.
   packages: []
 
 schedule:
@@ -31,9 +33,22 @@ schedule:
 
 # The Google sign-in the run needs. Declare-and-sync: this only names it, and
 # deploy copies it onto the box over SSH. No secret ever goes in this file.
+#
+# gws keeps its sign-in behind the OS keystore, which does not copy as a file, so
+# it gets exported to a scratch file first. Run this once before deploying:
+#   mkdir -p ~/.cache/deploy-to-vps
+#   umask 077 && gws auth export --unmasked > ~/.cache/deploy-to-vps/gws-credentials.json
+# Delete the scratch file once deploy confirms the sync:
+#   rm -f ~/.cache/deploy-to-vps/gws-credentials.json
+# Both files below are required: without client_secret.json the box gets a
+# misleading 403 about project permissions.
 credentials:
-  - from: ~/.config/gws/
-    to: .credentials/gws/
+  - from: ~/.cache/deploy-to-vps/gws-credentials.json
+    to: .credentials/gws/credentials.json
+  - from: ~/.config/gws/client_secret.json
+    to: .credentials/gws/client_secret.json
+# run.sh points gws at that folder and switches it to the file keyring backend,
+# so no .credentials/env entry is needed for this one.
 
 claude:
   # This automation does not run Claude Code, so no token is minted.

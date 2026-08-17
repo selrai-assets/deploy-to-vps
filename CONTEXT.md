@@ -12,7 +12,7 @@ _Avoid_: instance, droplet, machine, node. (Member-facing prose still says "serv
 
 **Automation**:
 A unit of work with an owner that runs on a schedule on the box.
-_Avoid_: job, task, script, bot.
+_Avoid_: job, task, script, bot. (Member-facing prose may still call the work an automation does a "job" in plain English — "automation" is the internal term for the unit itself.)
 
 **Manifest**:
 The one file inside an automation that states what it is, who owns it, what it needs, and when it runs.

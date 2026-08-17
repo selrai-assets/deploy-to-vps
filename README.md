@@ -5,9 +5,10 @@ battery. This kit rents you a small computer in a data centre, sets it up proper
 puts your automations on it with a schedule that fires whether you are at your desk or
 not.
 
-You do not touch a server. You talk to Claude, and Claude does the whole thing: opens the
-account, rents the machine, locks it down, installs your automation, sets its schedule,
-and shows you the first real run working.
+You do not touch a server. You talk to Claude. Claude opens the signup page and talks you
+through creating the account, which is the one part only you can do, and from the moment
+you are signed in Claude takes over: rents the machine, locks it down, installs your
+automation, sets its schedule, and shows you the first real run working.
 
 Made by Selr AI.
 

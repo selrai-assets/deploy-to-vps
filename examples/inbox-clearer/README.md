@@ -27,7 +27,11 @@ it. Copy this folder, change the parts that are yours, deploy it.
 
 ## Before you deploy it
 
-You need the gws command line tool signed in to your Google account on your own computer.
+You need the gws command line tool installed and signed in to your Google account on your
+own computer. It is what this automation uses to reach Gmail, so it has to be present on
+any machine that runs it, including the server. If it is missing, the run stops straight
+away and says so.
+
 The automation never asks who to send to. It reads the signed in address and sends the
 brief there, so it works the same on your machine and on the server.
 
@@ -55,9 +59,14 @@ Your inbox changes and the brief arrives within about a minute.
 2. Copy the folder to where you keep your automations, and point `source.location` at it.
 3. Ask Claude to deploy it.
 
-Deploy copies the folder onto the box, syncs your Google sign in into
+Deploy copies the folder onto the server, syncs your Google sign in into
 `.credentials/` (locked to the automation's own user, never in any repo), installs the
 schedule, and runs it once so you can see the brief land.
+
+Your gws sign in is held in your computer's keychain rather than in a plain file, so
+deploy exports a copy of it first, sends that and your Google client file across, and
+deletes the exported copy once it has landed. `automation.yaml` names both files and the
+one command to run before you deploy. Nothing secret is ever written into the manifest.
 
 ## How it decides what is noise
 

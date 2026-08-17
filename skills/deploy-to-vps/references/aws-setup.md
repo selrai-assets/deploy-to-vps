@@ -129,8 +129,8 @@ questions that come up, and the answers:
 |---|---|
 | Personal or business account? | Either works. Business if the card and the ABN/company are the business's — it only changes the tax details on the invoice. |
 | Why a card, if nothing is running yet? | Nothing bills until a server is launched, and that launch is a confirmed step with the price stated. The card is how AWS verifies the account. |
-| Which support plan? | **Basic** — free, and enough. Developer and Business plans are paid and buy nothing this skill needs. |
-| Is this free? | Don't promise the free tier. Quote the real figure from the skill's cost section — roughly US$12–18 a month for the default box, plus about US$2 for its disk, from launch until it's removed. |
+| Which support plan? | **Basic** — included at no cost, and enough. Developer and Business plans are paid and buy nothing this skill needs. |
+| Does this cost anything? | Don't promise a no-cost tier. Quote the real figure from the skill's cost section — roughly US$12–18 a month for the default box, plus about US$2 for its disk, from launch until it's removed. |
 | The card was declined / the code never arrived | Both are ordinary. A card with international payments blocked is the usual first cause; the code can take a few minutes and can be re-requested by voice instead of SMS. |
 
 Signup finishes on a "Congratulations" page or in an email a few minutes later. Wait for

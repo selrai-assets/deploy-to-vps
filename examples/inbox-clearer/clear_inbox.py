@@ -38,9 +38,11 @@ GWS = os.environ.get("GWS_BIN", "gws")
 # Gmail takes at most 1000 ids in one batchModify call.
 BATCH_MODIFY_LIMIT = 1000
 
-# A sender the brief treats as a robot rather than a person. Anything from one of
-# these lands in FYI even when it survived the filing pass.
-AUTO_LOCALPARTS = re.compile(
+# Brief classification only: sender local-parts that read as bulk or shared mailboxes
+# (support@, info@, noreply@). A thread from one of these lands in FYI rather than
+# needing attention. Distinct from config.json's automated_localpart, which decides
+# what gets filed out of the inbox.
+BULK_SENDER_LOCALPARTS = re.compile(
     r"^(no[-_.]?reply|do[-_.]?not[-_.]?reply|notifications?|alerts?|support|info|"
     r"team|hello|hi|contact|sales|marketing|admin|billing|accounts?|invoices?|"
     r"receipts?|news|newsletter|updates?|mailer-daemon|postmaster|bounces?|dmarc)"
@@ -278,6 +280,9 @@ def confirms(group, meta, me, automated):
 def file_noise(config, me, dry_run):
     """Walk the groups in order and file what each one confirms."""
     labels = label_map()
+    # Filing only: the robot-address pattern a group's confirm_sender interpolates as
+    # {automated}, deciding what leaves the inbox. Distinct from
+    # BULK_SENDER_LOCALPARTS above, which only sorts the brief.
     automated = config.get("automated_localpart", "(?!)")
     per_group_cap = config.get("max_per_group", 200)
     filed = {}
@@ -374,7 +379,7 @@ def classify(latest, me):
         return "hidden"  # a thread you are no longer addressed on
 
     local = sender.split("@")[0] if sender else ""
-    if AUTO_LOCALPARTS.match(local):
+    if BULK_SENDER_LOCALPARTS.match(local):
         return "fyi"
     if me in cc and me not in to:
         return "fyi"
