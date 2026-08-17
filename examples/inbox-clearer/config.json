@@ -3,6 +3,9 @@
 
   "analyse_threads": 40,
   "inbox_count_cap": 2000,
+  "max_per_group": 200,
+
+  "automated_localpart": "(no[-_.]?reply|do[-_.]?not[-_.]?reply|notifications?|notify|alerts?|mailer-daemon|postmaster|bounces?|dmarc|builds?|ci|digest|updates?|news|bot|automated|system)([-_.+][a-z0-9._-]*)?",
 
   "groups": [
     {
@@ -10,7 +13,7 @@
       "label": "Notifications/Hubstaff",
       "pretty": "Hubstaff",
       "query": "(from:hubstaff.com OR from:hubstaff)",
-      "confirm_sender": "@([a-z0-9.-]+\\.)?hubstaff\\.com$"
+      "confirm_sender": "^{automated}@([a-z0-9.-]+\\.)?hubstaff\\.com$"
     },
     {
       "key": "github",
@@ -24,14 +27,14 @@
       "label": "Notifications/Linear",
       "pretty": "Linear",
       "query": "from:linear.app",
-      "confirm_sender": "@([a-z0-9.-]+\\.)?linear\\.app$"
+      "confirm_sender": "^{automated}@([a-z0-9.-]+\\.)?linear\\.app$"
     },
     {
       "key": "ci",
       "label": "Notifications/Builds",
       "pretty": "Build and CI",
       "query": "(from:circleci.com OR from:travis-ci.org OR from:vercel.com OR from:netlify.com OR from:sentry.io)",
-      "confirm_sender": "@([a-z0-9.-]+\\.)?(circleci\\.com|travis-ci\\.org|vercel\\.com|netlify\\.com|sentry\\.io)$"
+      "confirm_sender": "^{automated}@([a-z0-9.-]+\\.)?(circleci\\.com|travis-ci\\.org|vercel\\.com|netlify\\.com|sentry\\.io)$"
     },
     {
       "key": "calendar",
@@ -54,7 +57,7 @@
       "label": "Notifications/Automated",
       "pretty": "Automated senders",
       "query": "(from:noreply OR from:no-reply OR from:no_reply OR from:donotreply OR from:do-not-reply OR from:notifications@ OR from:notification@ OR from:alerts@ OR from:alert@ OR from:mailer-daemon OR from:dmarc)",
-      "confirm_sender": "^(no[-_.]?reply|do[-_.]?not[-_.]?reply|notifications?|alerts?|mailer-daemon|postmaster|bounces?|dmarc)([-_.+][a-z0-9._-]*)?@"
+      "confirm_sender": "^{automated}@"
     }
   ]
 }

@@ -35,6 +35,9 @@ CONFIG = os.path.join(HERE, "config.json")
 
 GWS = os.environ.get("GWS_BIN", "gws")
 
+# Gmail takes at most 1000 ids in one batchModify call.
+BATCH_MODIFY_LIMIT = 1000
+
 # A sender the brief treats as a robot rather than a person. Anything from one of
 # these lands in FYI even when it survived the filing pass.
 AUTO_LOCALPARTS = re.compile(
@@ -72,8 +75,13 @@ class GwsError(RuntimeError):
     """A gws call failed. Carries the command, never the payload."""
 
 
-def gws(args, params=None, body=None):
-    """Run one gws call and return its parsed JSON (an empty dict when it returns none)."""
+def gws(args, params=None, body=None, label=None):
+    """Run one gws call and return its parsed JSON (an empty dict when it returns none).
+
+    `label` names the call in any error. Pass one whenever the arguments carry a
+    payload (an address, an email body) so a failure never echoes it back.
+    """
+    name = label or " ".join(args)
     cmd = [GWS] + args
     if params is not None:
         cmd += ["--params", json.dumps(params)]
@@ -83,14 +91,14 @@ def gws(args, params=None, body=None):
     proc = subprocess.run(cmd, capture_output=True, text=True)
     if proc.returncode != 0:
         detail = (proc.stderr or "").strip().splitlines()
-        raise GwsError(f"gws {' '.join(args)} failed: {detail[-1] if detail else 'no output'}")
+        raise GwsError(f"gws {name} failed: {detail[-1] if detail else 'no output'}")
     out = (proc.stdout or "").strip()
     if not out:
         return {}
     try:
         return json.loads(out)
     except json.JSONDecodeError as exc:
-        raise GwsError(f"gws {' '.join(args)} returned output that is not JSON") from exc
+        raise GwsError(f"gws {name} returned output that is not JSON") from exc
 
 
 # ---------------------------------------------------------------- account
@@ -138,11 +146,13 @@ def resolve_label(name, labels):
 
 
 def list_ids(query, max_results=200):
+    """Ids matching a search, plus whether the search had more than max_results."""
     data = gws(
         ["gmail", "users", "messages", "list"],
         params={"userId": "me", "q": query, "maxResults": max_results},
     )
-    return [m["id"] for m in data.get("messages", [])]
+    ids = [m["id"] for m in data.get("messages", [])]
+    return ids, bool(data.get("nextPageToken"))
 
 
 def message_meta(message_id):
@@ -227,12 +237,17 @@ def display_name(header):
     return addr.split("@")[0] if addr else "Unknown"
 
 
-def confirms(group, meta, me):
+def expand(pattern, automated):
+    """Put the shared automated-localpart pattern wherever a group wrote {automated}."""
+    return pattern.replace("{automated}", automated) if pattern else pattern
+
+
+def confirms(group, meta, me, automated):
     """Only file a message when the group's own pattern agrees with the search."""
     sender = first_address(meta["from"])
     checks = 0
 
-    pattern = group.get("confirm_sender")
+    pattern = expand(group.get("confirm_sender"), automated)
     if pattern:
         checks += 1
         if not re.search(pattern, sender, re.IGNORECASE):
@@ -240,13 +255,13 @@ def confirms(group, meta, me):
 
     # Some notifications carry the organiser in From and the robot in Sender.
     # Calendar replies are the common case.
-    header_pattern = group.get("confirm_sender_header")
+    header_pattern = expand(group.get("confirm_sender_header"), automated)
     if header_pattern:
         checks += 1
         if not re.search(header_pattern, first_address(meta["sender"]), re.IGNORECASE):
             return False
 
-    subject_pattern = group.get("confirm_subject")
+    subject_pattern = expand(group.get("confirm_subject"), automated)
     if subject_pattern:
         checks += 1
         if not re.search(subject_pattern, meta["subject"], re.IGNORECASE):
@@ -263,9 +278,14 @@ def confirms(group, meta, me):
 def file_noise(config, me, dry_run):
     """Walk the groups in order and file what each one confirms."""
     labels = label_map()
+    automated = config.get("automated_localpart", "(?!)")
+    per_group_cap = config.get("max_per_group", 200)
     filed = {}
-    skipped = []
     would_file = []
+    # A message can match one group's search, fail its confirmation, and then be
+    # filed by a later, broader group. Key the left-alone set by message id so it
+    # is counted once, and drop anything that was filed in the end.
+    left_alone = {}
     # A real run takes each group's messages out of the inbox before the next
     # group searches, so the later, broader groups never see them again. Track
     # the same set by hand so a dry run reports the same numbers.
@@ -273,14 +293,20 @@ def file_noise(config, me, dry_run):
 
     for group in config["groups"]:
         query = "label:INBOX " + group["query"]
-        ids = [i for i in list_ids(query) if i not in handled]
+        found, more = list_ids(query, per_group_cap)
+        if more:
+            print(
+                f"note: {group['key']} matched more than {per_group_cap} messages; "
+                f"the rest wait for the next run"
+            )
+        ids = [i for i in found if i not in handled]
         confirmed = []
         for message_id in ids:
             meta = message_meta(message_id)
-            if confirms(group, meta, me):
+            if confirms(group, meta, me, automated):
                 confirmed.append(meta)
             else:
-                skipped.append((group["key"], meta))
+                left_alone.setdefault(message_id, (group["key"], meta))
         if not confirmed:
             continue
         handled.update(meta["id"] for meta in confirmed)
@@ -289,16 +315,19 @@ def file_noise(config, me, dry_run):
         if dry_run:
             continue
         label_id = resolve_label(group["label"], labels)
-        gws(
-            ["gmail", "users", "messages", "batchModify"],
-            params={"userId": "me"},
-            body={
-                "ids": [meta["id"] for meta in confirmed],
-                "addLabelIds": [label_id],
-                "removeLabelIds": ["INBOX", "UNREAD"],
-            },
-        )
+        ids_to_modify = [meta["id"] for meta in confirmed]
+        for start in range(0, len(ids_to_modify), BATCH_MODIFY_LIMIT):
+            gws(
+                ["gmail", "users", "messages", "batchModify"],
+                params={"userId": "me"},
+                body={
+                    "ids": ids_to_modify[start : start + BATCH_MODIFY_LIMIT],
+                    "addLabelIds": [label_id],
+                    "removeLabelIds": ["INBOX", "UNREAD"],
+                },
+            )
 
+    skipped = [entry for mid, entry in left_alone.items() if mid not in handled]
     return filed, would_file, skipped
 
 
@@ -414,12 +443,15 @@ def render(data):
     )
     if proc.returncode != 0:
         raise RuntimeError(f"renderer failed: {(proc.stderr or '').strip()[:300]}")
+    if not proc.stdout.strip():
+        raise RuntimeError("renderer produced an empty brief")
     return proc.stdout
 
 
 def send(address, subject, html):
     result = gws(
-        ["gmail", "+send", "--to", address, "--subject", subject, "--body", html, "--html"]
+        ["gmail", "+send", "--to", address, "--subject", subject, "--body", html, "--html"],
+        label="gmail +send",  # keeps the address and the rendered body out of any error
     )
     return result.get("id", "sent")
 
@@ -454,7 +486,8 @@ def main():
         print(f"\nleft alone (matched a search but not its confirmation): {len(skipped)}")
         for key, meta in skipped:
             print(f"  [{key}] {first_address(meta['from'])}  {meta['subject'][:70]}")
-        post, post_capped = pre, pre_capped
+        # Nothing moved, so report the count the inbox would have been left at.
+        post, post_capped = max(pre - len(would_file), 0), pre_capped
     else:
         post, post_capped = inbox_count(cap)
 

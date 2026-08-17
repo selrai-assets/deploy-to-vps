@@ -8,7 +8,9 @@ Linear, build alerts, calendar replies, anything from a no-reply address), label
 it read, and then emails you an HTML brief: what it cleared, what needs your attention, and
 what is worth being across.
 
-Real messages from real people are never touched.
+Nothing is deleted, and a message is only filed when it came from a robot: the address it
+was sent from has to look like `noreply@`, `notifications@` or similar, on top of matching
+the group that found it. A message from a person stays in your inbox.
 
 ## What it is made of
 
@@ -68,6 +70,12 @@ Both have to match. A DMARC report from a sender the pattern does not recognise,
 example, gets left exactly where it is and shows up in the dry run under "left alone". When
 in doubt, the automation does nothing. That is the rule the whole thing is built on.
 
+The confirmation patterns are deliberately about the address, not the company. Writing
+`{automated}` in a pattern drops in the shared list of robot addresses at the top of
+`config.json`, so `^{automated}@...linear\.app$` files the notification mail from Linear
+and leaves a message from a person who happens to work there alone. Keep the `{automated}`
+part when you add a group for a tool you use.
+
 Labels are looked up by name and created when they are missing, so nothing is tied to one
 mailbox. The groups ship with a `Notifications/...` label each: `Notifications/Hubstaff`,
 `Notifications/GitHub`, `Notifications/Linear`, `Notifications/Builds`,
@@ -85,14 +93,17 @@ Add a group to `config.json` for the tool that clutters your inbox:
   "label": "Notifications/Helpdesk",
   "pretty": "Helpdesk",
   "query": "from:helpdesk.example.com",
-  "confirm_sender": "@helpdesk\\.example\\.com$"
+  "confirm_sender": "^{automated}@helpdesk\\.example\\.com$"
 }
 ```
 
 Order matters. Named groups run first, and the broad `automated` catch all runs last.
 
-Two other settings live there: `analyse_threads` (how many of the newest inbox threads the
-brief reads, 40 by default) and `subject_prefix` (the subject line of the brief).
+Three other settings live there: `analyse_threads` (how many of the newest inbox threads
+the brief reads, 40 by default), `max_per_group` (how many messages one group files in a
+single run, 200 by default, with the rest waiting for the next run) and `subject_prefix`
+(the subject line of the brief). If you change `subject_prefix`, change the `past_briefs`
+group's `query` and `confirm_subject` to match, or it stops finding yesterday's brief.
 
 The shipped groups treat sign in codes and security alerts from those senders as noise as
 well, because they come from no-reply addresses. If you would rather keep those in the
