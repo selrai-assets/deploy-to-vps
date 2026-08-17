@@ -59,8 +59,10 @@ sent you here:
 - **Whose key is it?** The `Arn` — AWS's identifier for a thing, the long
   `arn:aws:iam::…` string in that JSON — should end in `:user/claude-assistant`. One
   ending in `:root` is the root login, which must be replaced, not used: sign in to the
-  console (**Stage 3**), make the proper user (**Stage 4**), then clean up the root key
-  (**Stage 8**).
+  console (**Stage 3**), make the proper user (**Stage 4**), give it a key (**Stage 5**),
+  write and verify it (**Stage 7**), and only then clean up the root key (**Stage 8**).
+  That order matters — Stage 8 deletes the only credential on the machine, so the
+  replacement has to be working first.
 - **Whose region is it?** A configured region is not the same as a chosen one; some other
   tool may have written it, and `us-east-1` is what most of them write. Read it back and
   get an explicit yes before any server is launched into it — that is Stage 6, and it
@@ -206,13 +208,26 @@ assuming a path:
 
 ```bash
 CSV=$(ls -t "$HOME/Downloads"/*accessKeys*.csv 2>/dev/null | head -1)
-AKID=$(awk -F, 'NR==2{print $1}' "$CSV")
-SECRET=$(awk -F, 'NR==2{print $2}' "$CSV")
-[ "${#AKID}" -eq 20 ] && [ "${#SECRET}" -eq 40 ] && echo "OK: key read from CSV"
+AKID=$(awk -F, 'NR==2{print $1}' "$CSV" | tr -d '\r"')
+SECRET=$(awk -F, 'NR==2{print $2}' "$CSV" | tr -d '\r"')
+[ "${#AKID}" -eq 20 ] && [ "${#SECRET}" -eq 40 ] || {
+  echo "CSV did not parse as expected — write nothing"; exit 1; }
 ```
 
-Shred the CSV once Stage 7 verifies — `rm -P "$CSV"` on macOS, `shred -u "$CSV"` on Linux.
-It is a live credential sitting in a downloads folder.
+The `tr` is not optional: AWS writes that CSV with Windows line endings, so `awk` hands
+back a secret with a trailing carriage return. It is invisible in every way except that
+the key then fails to authenticate, as `SignatureDoesNotMatch`, for no visible reason. And
+the length check is a gate, not a report — on a surprise from the file, stop rather than
+write a broken credential.
+
+The CSV is a live credential sitting in a downloads folder, so shred it once Stage 7 has
+verified. That is a later shell call and `$CSV` will not have survived it, so find the file
+again rather than reusing the variable:
+
+```bash
+CSV=$(ls -t "$HOME/Downloads"/*accessKeys*.csv 2>/dev/null | head -1)
+[ -n "$CSV" ] && { rm -P "$CSV" 2>/dev/null || shred -u "$CSV"; }   # -P macOS, shred Linux
+```
 
 **Fallback, if the download is unavailable** (a locked-down browser, a Playwright profile
 with downloads disabled): read the values off the page instead, clicking **Show** first if
@@ -279,8 +294,8 @@ answer, write:
 
 ```bash
 mkdir -p "$HOME/.aws"
-[ -f "$HOME/.aws/credentials" ] && cp "$HOME/.aws/credentials" "$HOME/.aws/credentials.bak"
 umask 077
+[ -f "$HOME/.aws/credentials" ] && cp "$HOME/.aws/credentials" "$HOME/.aws/credentials.bak"
 cat > "$HOME/.aws/credentials" <<EOF
 [default]
 aws_access_key_id = $AKID
@@ -293,6 +308,10 @@ output = json
 EOF
 chmod 600 "$HOME/.aws/credentials" "$HOME/.aws/config"
 ```
+
+The `.bak` is only there to undo a mistake in the next few minutes — it is a live
+credential too, not an archive. Delete it once Stage 7's verification passes, the same way
+the CSV goes.
 
 `$AKID`, `$SECRET` and `$REGION` have to be set in the **same shell call** as the heredoc
 — shell variables don't survive between calls. On the CSV path that means the two `awk`
