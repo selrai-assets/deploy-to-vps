@@ -7,7 +7,7 @@ surfaces, issues and ADRs, so the same thing is not called three names.
 ## Language
 
 **Box**:
-One provisioned server this skill manages, tracked by its own local box record.
+One provisioned server that this skill manages as a single named unit.
 _Avoid_: instance, droplet, machine, node. (Member-facing prose still says "server" or "VPS" in plain English — "box" is the internal term.)
 
 **Automation**:
@@ -27,7 +27,7 @@ The GitHub repo a Skool member clones, whose deliverable is the skill plus its s
 _Avoid_: package, bundle, template, download.
 
 **`automations` user**:
-The single Unix user on the box that owns every automation; per-person SSH keys decide who may deploy.
+The single Unix user on the box that owns and runs every automation.
 _Avoid_: service account, deploy user, shared login.
 
 **Setup token**:
