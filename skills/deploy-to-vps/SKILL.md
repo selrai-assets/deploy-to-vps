@@ -1,6 +1,6 @@
 ---
 name: deploy-to-vps
-description: "One place to deploy any team automation onto an always-on Linux server (a VPS) on AWS EC2 — so scheduled jobs stop depending on someone's home computer being awake. Six verbs: provision a new hardened server, connect to a teammate's existing one (with access diagnosis and exact grant instructions), deploy an automation (folder + manifest → server, runtime installed, schedule live), status/logs, scale the server up, and remove an automation or the whole server. Runs plain scripts, headless Claude Code, and headless Playwright browser automations on systemd timers. Use when someone says 'deploy my automation', 'put this on the server', 'set up a server for the team', 'is the server running', 'show me the logs', 'give Abby access to the box', 'the server needs more power', or 'take it down'. Requires the aws skill's CLI connection first for server lifecycle verbs; deploying to an existing server needs only SSH."
+description: "One place to deploy any automation onto an always-on Linux server (a VPS) on AWS EC2 — so scheduled jobs stop depending on someone's home computer being awake. Six verbs: provision a new hardened server, connect to an existing one someone else owns (with access diagnosis and exact grant instructions), deploy an automation (folder + manifest → server, runtime installed, schedule live), status/logs, scale the server up, and remove an automation or the whole server. Runs plain scripts, headless Claude Code, and headless Playwright browser automations on systemd timers. Use when someone says 'deploy my automation', 'put this on the server', 'set up an always-on server', 'is the server running', 'show me the logs', 'give someone else access to the box', 'the server needs more power', or 'take it down'. Server lifecycle verbs need an AWS CLI connection, and this skill sets that up itself from a standing start — account signup through to a scoped IAM user and a configured CLI; deploying to an existing server needs only SSH."
 allowed-tools: Bash, Read, Write, Edit, mcp__playwright__*, mcp__plugin_playwright_playwright__*
 metadata:
   category: Productivity & Integrations
@@ -14,19 +14,17 @@ metadata:
     - systemd
     - scheduling
   pairs-with:
-    - skill: aws
-      reason: "Connects the aws CLI this skill drives; that skill ends where this one begins — it calls server provisioning 'a separate setup', and this is it"
     - skill: gws
-      reason: "gws-based automations deployed to a server need gws re-authed into its file backend (see Gotchas)"
+      reason: "gws-based automations deployed to a server need their gws sign-in exported to the box's file backend (see Gotchas)"
 ---
 
-# deploy-to-vps — an always-on home for the team's automations
+# deploy-to-vps — an always-on home for your automations
 
 ## Overview
 
-A **VPS** — a rented computer in a data centre that is always on — gives the team one
-place to run every automation, instead of jobs firing only while someone's home desktop
-is awake. This skill provisions that server on **AWS EC2** (Amazon's rent-a-server
+A **VPS** — a rented computer in a data centre that is always on — gives you one place
+to run every automation, instead of jobs firing only while someone's home desktop is
+awake. This skill provisions that server on **AWS EC2** (Amazon's rent-a-server
 service), hardens it by default, and deploys automations onto it as
 **folder + manifest** packages on a schedule.
 
@@ -64,23 +62,29 @@ run again — every step checks first and only acts if something is missing.
 - **Credentials are declare-and-sync.** The manifest declares what the automation
   needs; deploy copies it from the deployer's machine over SSH into the automation's
   private `.credentials/` folder on the server (folder mode 700, files 600). Nothing
-  credential-shaped ever enters a repo or a team folder.
+  credential-shaped ever enters a repo or a shared folder.
+- **Credentials move programmatically, never through the model's context.** Every
+  secret goes file-to-file — written straight to a file or piped down the SSH pipe,
+  under `umask 077`. Never print one, never read one back, never let one land in the
+  conversation. This rule outranks convenience in every verb.
 
 **Who needs what.** Deploying onto an existing server, checking status, and reading
 logs need only SSH. Creating, resizing, or destroying a server needs the AWS CLI
-connected — if it isn't, run the **aws** skill first (it mints a `claude-assistant`
-IAM user; provisioning needs its write-level option, PowerUserAccess).
+connected — if it isn't, `references/aws-setup.md` gets there from wherever the person
+actually is, including no AWS account at all: signup in their own browser, a dedicated
+`claude-assistant` IAM user scoped to PowerUserAccess, and the CLI configured with a
+region they chose. No other skill is needed.
 
 **Operating from Windows.** Windows 10+ ships OpenSSH, so `ssh`, `scp` and
 `~/.ssh/config` all work as written in PowerShell. Where a snippet uses `rsync`
-(which Windows lacks), copy with `scp -r` instead, or run the snippet in WSL. The
-gws keychain note in Gotchas is Mac-specific.
+(which Windows lacks), copy with `scp -r` instead, or run the snippet in WSL. The gws
+credential recipe in Gotchas is OS-portable — it works the same from Mac or Windows.
 
 ## Which verb to run
 
 | The person wants | Verb |
 |---|---|
-| A new server for the team | **provision** |
+| A new always-on server | **provision** |
 | To use a server someone else owns (or access is failing) | **connect** |
 | An automation put on the server, or updated | **deploy** |
 | To know what's running / what happened | **status / logs** |
@@ -118,20 +122,21 @@ set -a; . "$HOME/.config/deploy-to-vps/<boxname>.env"; set +a   # INSTANCE_ID, R
 
 ## PROVISION — a new hardened server
 
-**Goal:** a running, hardened Ubuntu box the whole team can deploy to.
+**Goal:** a running, hardened Ubuntu box the owner can deploy to, and so can anyone they
+later grant a key.
 
 1. **Offer the size menu** (honest costs, monthly, roughly — varies a little by region):
    - **t4g.small** — 2 cores, 2 GB. ~US$12–18/mo. Right for scripts and Claude jobs. *(default)*
    - **t4g.medium** — 2 cores, 4 GB. ~US$24/mo. Right when browser automations are planned.
 
-   Ask for a short server name (lowercase-with-hyphens, e.g. `oa-automations`). Region
+   Ask for a short server name (lowercase-with-hyphens, e.g. `my-automations`). Region
    defaults to the machine's home region — don't ask about regions unless they bring
-   it up. Hold the choice as `SIZE` (`t4g.small` or `t4g.medium`) for step 5.
+   it up. Hold the size as `SIZE` (`t4g.small` or `t4g.medium`) for step 5.
 
 2. **Check the connection** (silent):
 
    ```bash
-   aws sts get-caller-identity --output json   # must succeed; if not → run the aws skill first
+   aws sts get-caller-identity --output json   # must succeed; if not → references/aws-setup.md
    REGION="$(aws configure get region)"
    BOX=<boxname>
    ```
@@ -288,8 +293,8 @@ gets an exact, forwardable fix rather than a shrug.
    > ssh <boxname> 'printf "%s\n" "<contents of their vps-<boxname>.pub>" >> ~/.ssh/authorized_keys'
    > ```
 
-   The same works in reverse: when *this* person owns the box and a teammate is locked
-   out, take the teammate's public key and run that line here, now. Revoking is
+   The same works in reverse: when *this* person owns the box and someone else is
+   locked out, take that person's public key and run that line here, now. Revoking is
    deleting that key's line from the same file.
 
 ---
@@ -299,18 +304,24 @@ gets an exact, forwardable fix rather than a shrug.
 **Goal:** the automation is on the box, its runtime installed, its credentials in
 place, its timer live, and one real run observed.
 
-1. **Read the manifest** (`automation.yaml` in the automation folder). You read it
+1. **Find the automation, then read its manifest.** The person usually just names it —
+   "deploy my inbox clearer". Locate that folder on this machine the way you would
+   locate anything else: ask them where it lives, or search for it. If it doesn't exist
+   yet, build it first, exactly as you normally would, then deploy what you built. The
+   positive check before going on: you can list the folder and see the code in it.
+
+   Then read the manifest (`automation.yaml` at the top of that folder). You read it
    yourself — there is no parser program. No manifest yet? Write one with the person
    using `templates/automation.yaml`; format reference: `references/manifest.md`.
    `name` becomes the folder and unit names — check it's not already deployed
    (`ssh "$BOX" 'ls ~'`) unless this is an update.
 
 2. **Resolve the source.** `local` → the folder is already here. `github` → clone it
-   fresh (`gh repo clone <owner>/<repo> <tmpdir>`). `team` → the folder inside the
-   team base. If the person wants version history and the automation has no repo,
-   offer to make one: `gh repo create <owner>/<name> --private --source <folder> --push`
-   — after confirming the folder holds no credentials (it must not; the manifest only
-   *names* credentials, deploy syncs them separately).
+   fresh (`gh repo clone <owner>/<repo> <tmpdir>`). If the person wants version history
+   and the automation has no repo, offer to make one:
+   `gh repo create <owner>/<name> --private --source <folder> --push` — after confirming
+   the folder holds no credentials (it must not; the manifest only *names* credentials,
+   deploy syncs them separately).
 
 3. **Copy the folder** to the box (never `.git`, never local credential files):
 
@@ -470,7 +481,7 @@ disk dies with it — anything worth keeping should have been in a repo.)
 |---|---|
 | SSH suddenly refuses / times out to a box that worked | The IP changed (stop/start does this). Refresh it from the instance id — end of PROVISION. |
 | `systemctl --user` says "Failed to connect to bus" | The `XDG_RUNTIME_DIR` export is missing from that SSH command — every user-level systemd call over SSH needs it. |
-| `gws` on the box can't read synced credentials | Mac gws keeps its encryption key in the macOS keyring, which doesn't copy as a file. Verified path: on the deployer's Mac, copy the gws config into a scratch dir, extract the key programmatically — `security find-generic-password -s gws-cli -a "$(id -un)" -w > <scratch>/.encryption_key` (redirect straight to the file, mode 600, under `umask 077`; never let it print), then smoke-test locally with `GOOGLE_WORKSPACE_CLI_KEYRING_BACKEND=file GOOGLE_WORKSPACE_CLI_CONFIG_DIR=<scratch> gws gmail +triage`, then sync the scratch dir to the box and set both env vars in the automation's `.credentials/env`. Fallback if the keychain refuses: `gws auth login` into that same scratch dir with the file backend (browser sign-in once). |
+| `gws` on the box can't read synced credentials | The deployer's gws keeps its sign-in encrypted behind an OS keystore (the macOS keyring, Windows Credential Manager) that doesn't copy as a file. Export it instead — same on Mac and Windows. Write the export to a scratch file under the home folder, so it can be declared as a normal manifest `from:` path: `mkdir -p ~/.cache/deploy-to-vps && umask 077 && gws auth export --unmasked > ~/.cache/deploy-to-vps/gws-credentials.json` (redirect straight to the file, never let it print; `--unmasked` is mandatory — without it the client secret comes back as a placeholder and fails on the box). Declare it like any other credential — `from: ~/.cache/deploy-to-vps/gws-credentials.json`, `to: .credentials/gws/credentials.json` — and declare the OAuth client alongside it, `from: ~/.config/gws/client_secret.json`, `to: .credentials/gws/client_secret.json`. **Both files are required**: without `client_secret.json` in the same folder the call reaches Google and comes back `403 … does not have required permission to use project <id>`, which reads like a scopes problem and is not one. Then put both of these in the automation's `.credentials/env`: `GOOGLE_WORKSPACE_CLI_CONFIG_DIR=/home/automations/<name>/.credentials/gws` and `GOOGLE_WORKSPACE_CLI_KEYRING_BACKEND=file`. gws reads a plaintext `credentials.json` sitting in its config dir as its lowest-priority credential source — no encryption key, no keystore — and the file backend keeps it from reaching for an OS keyring the box doesn't have. **Delete the scratch file once the sync is confirmed** (`rm -f ~/.cache/deploy-to-vps/gws-credentials.json`) — it is a live refresh token in the clear. Fallback if the export refuses: `gws auth login` **on the box**, with those same two env vars set, opening the sign-in URL it prints in the deployer's own browser. |
 | Browser automation is slow or the browser gets killed | 2 GB is tight for Chromium — this workload wants t4g.medium. Say so honestly and offer **scale**. |
 | A site refuses the automation's headless login | Bot defence. The pattern: a dedicated service user on that site, signed in once (interactively if needed), profile persisted in the automation folder — see `references/runtimes.md`. |
 | Scale to an x86 size fails to boot | The box is ARM — stay in the t4g family (or another `g`-suffixed ARM family). |
@@ -490,6 +501,8 @@ disk dies with it — anything worth keeping should have been in a repo.)
 ## Files in this skill
 
 - `SKILL.md` — this file: the six verbs.
+- `references/aws-setup.md` — no AWS account to connected CLI: signup, the
+  `claude-assistant` IAM user at PowerUserAccess, region, credentials.
 - `references/manifest.md` — the automation manifest, field by field.
 - `references/runtimes.md` — script / claude-code / playwright recipes and caveats
   (agents-sdk reserved for later).
@@ -501,9 +514,8 @@ disk dies with it — anything worth keeping should have been in a repo.)
 
 ## Related skills
 
-- **aws** — connects the AWS CLI this skill drives; run it first if
-  `aws sts get-caller-identity` fails. It stops at "server provisioning is a separate
-  setup" — this skill is that setup.
-- **gws** — for Google-Sheets/Gmail automations; note the keyring gotcha above.
-- The team's `docs/routines-decision.md` — when a job should be a cloud routine
-  instead of living on this server.
+- **gws** — for Google-Sheets/Gmail automations; note the credential-export gotcha
+  above.
+- **Claude cloud routines** — not a skill, but the other place a scheduled job can
+  live. Right for simple wake-run-stop work that needs nothing on a particular
+  machine; this server is for CLIs, long-lived processes and browser work.

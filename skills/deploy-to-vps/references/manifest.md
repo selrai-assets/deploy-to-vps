@@ -41,7 +41,7 @@ The short handle for this automation.
 One sentence saying what it does, written for someone who has never seen it.
 
 - **Allowed:** any single line of plain English.
-- **Example:** `Emails Harvey a morning brief of his inbox.`
+- **Example:** `Emails me a morning brief of my inbox.`
 - **What deploy does:** writes it into the schedule file as the unit description, so it
   shows up in `status` and in the logs instead of a bare name.
 
@@ -50,11 +50,11 @@ One sentence saying what it does, written for someone who has never seen it.
 The person whose seat the automation runs on.
 
 - **Allowed:** one email address.
-- **Example:** `bryce@oa.example`
+- **Example:** `you@example.com`
 - **What deploy does:** three things. It syncs credentials from **that person's**
   machine; if `claude.setup_token` is on, it signs Claude Code in on the box against
   **that person's** Claude subscription, so the usage lands on their seat; and it names
-  the owner in `status` so the team can see who to ask when something breaks. Deploy
+  the owner in `status` so it is clear who to ask when something breaks. Deploy
   checks the owner is the person actually running the deploy, and stops to ask if not.
 
 ## `source`
@@ -65,14 +65,12 @@ on the box.
 | `type` | `location` is | Example | What deploy does |
 |---|---|---|---|
 | `local` | a folder on the owner's own computer | `~/automations/inbox-brief` | copies the folder onto the box over SSH each deploy |
-| `github` | a GitHub repo, as `owner/repo` | `oa-automations/servicem8-morning-check` | clones the latest commit onto the deployer's machine, then copies it onto the box over SSH |
-| `team` | a path inside the team's shared setup folder | `skills/daily-job-checks` | copies that subfolder out of the team clone onto the box |
+| `github` | a GitHub repo, as `owner/repo` | `my-automations/servicem8-morning-check` | clones the latest commit onto the deployer's machine, then copies it onto the box over SSH |
 
-Use `local` for something being built and changed by one person. Use `github` once more
-than one person touches it, or once the history matters. Use `team` for something that
-already ships in the team layer and should stay identical to it. Whatever the type, the
-box itself never holds anyone's GitHub login — the code always arrives over SSH from the
-deployer's machine, and a redeploy just repeats that.
+Use `local` for something being built and changed on one computer. Use `github` once
+more than one person touches it, or once the history matters. Either way the box itself
+never holds anyone's GitHub login — the code always arrives over SSH from the deployer's
+machine, and a redeploy just repeats that.
 
 **No repo yet?** The skill can create one: a **private** GitHub repo under the owner's
 account, first commit pushed, and the manifest switched to `type: github` with the new
@@ -144,7 +142,7 @@ Two things worth saying out loud:
   was due while the box was off fires as soon as the box is back, once, then returns to
   the normal schedule.
 - **"Box time" is the box's clock, not yours.** A fresh Ubuntu box runs on UTC. Check it
-  with `timedatectl` over SSH and set it once if the team wants local time:
+  with `timedatectl` over SSH and set it once if local time is wanted:
   `sudo timedatectl set-timezone Australia/Brisbane`. Agree the timezone when you agree
   the schedule.
 
@@ -160,8 +158,10 @@ credentials:
 ```
 
 The model is **declare-and-sync**: the manifest only *names* what is needed. The actual
-secret is never in the manifest, never in the repo, never in a team folder, and is never
-printed in output or logs.
+secret is never in the manifest, never in the repo, never in a shared folder, and is
+never printed in output or logs. The standing rule: **credentials move
+programmatically, never through the model's context** — file to file, down the SSH
+pipe, under `umask 077`.
 
 - **`from`** — the path on the owner's own computer. A file or a folder. Resolve it from
   the home folder (`~/...`), never as `/Users/someone/...`, so the same manifest works on
@@ -180,15 +180,20 @@ as environment variables for every run, so the command can read a key without a 
 baked into it. It is optional — a missing one is not an error. Sync it like anything
 else, with `to: .credentials/env`.
 
-**Honest edge: keyring-held credentials need one extra move.** A tool that keeps its
-sign-in key in the macOS keyring — the `gws` Google CLI is the one we hit first — has one
-piece that isn't a file. Deploy handles it invisibly where the tool allows: it reads the
-key out of the keyring programmatically (never showing it), places it in the tool's
-file-based store inside a scratch copy of the config, and syncs *that* to the box — for
-gws, the file backend via its two `GOOGLE_WORKSPACE_CLI_*` environment variables. Only
-when a tool offers no such path does deploy fall back to a one-off browser sign-in into
-the tool's file store during deploy — and it will say so, rather than silently producing
-an automation that fails at 7am.
+**Honest edge: keystore-held credentials need one extra move.** A tool that keeps its
+sign-in behind an OS keystore — the macOS keyring, Windows Credential Manager; the `gws`
+Google CLI is the one we hit first — has one piece that isn't a file. Deploy handles it
+invisibly where the tool can export: it asks the tool for its own credentials
+programmatically, redirects them straight into a scratch file (never showing them),
+syncs that file to the box, deletes the scratch copy, and switches the tool to its
+file-based store there — for gws, `gws auth export --unmasked` into a
+`credentials.json`, the OAuth client's `client_secret.json` synced next to it (both
+files, or the box gets a misleading `403` about project permissions), plus the two
+`GOOGLE_WORKSPACE_CLI_*` environment variables in `.credentials/env`. That path is
+OS-portable: it works the same from a Mac or a Windows machine. Only when a tool offers
+no export does deploy fall back to a one-off browser sign-in **on the box** during
+deploy — and it will say so, rather than silently producing an automation that fails at
+7am.
 
 ## `claude`
 
@@ -206,9 +211,10 @@ The rules around it are firm:
 
 - **Per owner, always.** The token comes from the subscription the `owner` is signed in
   to. Their automations spend their seat's usage.
-- **Never one org-wide token** shared by every automation on the box. If a team outgrows
-  one seat's limits, they add seats and spread automations across owners — that is the
-  intended way to scale, and it only works if each automation carries its own owner.
+- **Never one org-wide token** shared by every automation on the box. When one seat's
+  limits are outgrown, the fix is more seats with automations spread across owners —
+  that is the intended way to scale, and it only works if each automation carries its
+  own owner.
 - **Never an Anthropic API key.** Subscription setup tokens only. If an automation looks
   like it wants an API key, that is a design problem to raise, not a value to paste in.
 
@@ -218,17 +224,17 @@ Leave it `false` for anything that does not run Claude Code.
 
 ## A complete manifest
 
-A daily ServiceM8 morning check, owned by Bryce on the OA side: Claude reads yesterday's
-jobs and today's bookings out of ServiceM8 and emails him what needs attention.
+A daily ServiceM8 morning check: Claude reads yesterday's jobs and today's bookings out
+of ServiceM8 and emails the owner what needs attention.
 
 ```yaml
 name: servicem8-morning-check
-description: Emails Bryce a 7am rundown of yesterday's jobs and today's bookings.
-owner: bryce@oa.example
+description: Emails a 7am rundown of yesterday's jobs and today's bookings.
+owner: you@example.com
 
 source:
   type: github
-  location: oa-automations/servicem8-morning-check
+  location: my-automations/servicem8-morning-check
 
 runtime:
   kind: claude-code
