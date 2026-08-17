@@ -1,0 +1,40 @@
+# automation.yaml for the inbox-clearer demo.
+# Field-by-field explanation: skills/deploy-to-vps/references/manifest.md
+
+# Short handle. Names the folder on the box, the schedule and the logs.
+name: inbox-clearer
+
+# One sentence anyone would understand. Shown wherever this is listed.
+description: Files notification noise out of the inbox and emails a brief of what is left.
+
+# The person it runs as: their Google sign-in, their name on it.
+# Change this to your own address before deploying.
+owner: you@example.com
+
+source:
+  # local = a folder on your own computer. Copy this example folder to the
+  # location below (or point location at wherever you keep it).
+  type: local
+  location: ~/automations/inbox-clearer
+
+runtime:
+  # A plain Python program. No Claude Code on the box, so no setup token.
+  kind: script
+  command: ./run.sh
+  packages: []
+
+schedule:
+  # Check any expression first:
+  #   systemd-analyze calendar "Mon..Fri *-*-* 07:00:00" --iterations=3
+  calendar: "Mon..Fri *-*-* 07:00:00"
+  plain: Every weekday at 7am (box time).
+
+# The Google sign-in the run needs. Declare-and-sync: this only names it, and
+# deploy copies it onto the box over SSH. No secret ever goes in this file.
+credentials:
+  - from: ~/.config/gws/
+    to: .credentials/gws/
+
+claude:
+  # This automation does not run Claude Code, so no token is minted.
+  setup_token: false

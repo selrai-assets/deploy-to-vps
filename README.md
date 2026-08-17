@@ -11,8 +11,14 @@ skills/deploy-to-vps/
   references/         # manifest format, runtime catalogue
   templates/          # example manifest + systemd unit templates
   scripts/harden.sh   # idempotent box hardening
+examples/
+  inbox-clearer/      # a working demo automation: folder + manifest, deployable as-is
 research/             # scoping docs (not part of the skill)
 ```
+
+`examples/inbox-clearer/` is both the server's first real job and the worked example to
+copy when writing your own: it files notification noise out of the Gmail inbox and emails
+an HTML brief of what was cleared and what needs attention. See its README.
 
 Agreed scope lives in `research/2026-08-14-skool-v1-shared-understanding.md`. If later
 work contradicts it, update that file deliberately or treat the work as out of scope.
